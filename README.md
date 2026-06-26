@@ -1,21 +1,40 @@
 # Farming Profit
 
-A [RuneLite](https://runelite.net) plugin that tracks the crops you harvest during a farm
-run and calculates the profit, using live Grand Exchange prices for the seeds and the
-products.
+A [RuneLite](https://runelite.net) plugin for farm runs. The side panel has two tabs:
 
-A side panel lists each patch you harvest with its product image, amount and profit, plus a
-running total for the whole run. Hover a patch for a cost/products/profit breakdown.
+### Tracker
 
-### Supported patch types
+Lists each patch you harvest with its product image, amount and value, plus a running total
+for the run. Hover a patch for a cost / products / profit / XP breakdown.
 
-* Herbs
-* Allotments
-* Hops
-* Bushes
-* Special (cactus + seaweed)
+* **Mains** see Grand Exchange profit (live GE prices for the seeds and herbs).
+* **Ironmen** see Farming **XP** instead — since they can't sell on the GE, profit is
+  meaningless, so the tracker shows the experience each patch gave.
 
-Each patch type can be toggled on or off in the plugin configuration.
+The account type is detected automatically (`client.getAccountType()`), and you can override
+it from *Value patches by* in the config (Auto / Profit / XP).
+
+Supported patch types (each toggleable in config): Herbs, Allotments, Hops, Bushes, Special
+(cactus + seaweed).
+
+### Herb planner
+
+Ranks every herb you can currently plant by **profit per run** (mains) or **XP per run**
+(ironmen), so you always know the best herb to grow. It reimplements the OSRS wiki's herb
+yield model and pulls in your real situation:
+
+* Your **Farming level** (read live).
+* **Magic secateurs** (+10%) — detected whether equipped or in your inventory.
+* **Farming / Max cape** (+5%, herbs only) — detected when worn.
+* **Compost** tier, **number of patches**, and an optional **Attas** plant (+5%) — from config.
+
+Expected yield per patch is `lives / (1 - chanceToSave)`, where the chance-to-save constants
+are boosted by your gear before the level interpolation — matching
+`Module:Herb_Farming_calculator`. Profit uses the live grimy-herb GE price minus the seed cost.
+
+> Not modelled: per-patch diary yield bonuses (e.g. Kandarin at Catherby) — these don't change
+> the herb ranking and vary by patch. Magic secateurs / Farming cape are untradeable, so they're
+> detected, never priced.
 
 ## Attribution
 
@@ -32,6 +51,13 @@ Changes made while externalising:
 * `com.google.common.eventbus.Subscribe` → `net.runelite.client.eventbus.Subscribe` (RuneLite
   moved off Guava's EventBus; with the old import the event handlers silently never fired).
 * Removed the leftover debug overlay that displayed internal tracking IDs.
+
+Features added on top of the original:
+
+* Account-type detection with profit-for-mains / XP-for-ironmen display (and a manual override).
+* A second "Planner" tab that ranks herbs by profit or XP per run using your live level and gear.
+* Per-crop Farming level / planting XP / harvest XP and per-herb chance-to-save data, with unit
+  tests covering the yield model against the wiki's reference values.
 
 > Note: the crop table still uses the (now deprecated but fully functional)
 > `net.runelite.api.ItemID` / `AnimationID` / `SpriteID` / `InventoryID` constants. A future

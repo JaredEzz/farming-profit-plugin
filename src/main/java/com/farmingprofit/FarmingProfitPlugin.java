@@ -36,17 +36,25 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import net.runelite.api.AnimationID;
 import net.runelite.api.Client;
+import net.runelite.api.GameState;
 import net.runelite.api.InventoryID;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.ItemID;
 import net.runelite.api.MenuAction;
 import net.runelite.api.Skill;
 import net.runelite.api.SpriteID;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.api.events.ChatMessage;
+import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
+import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.StatChanged;
+import net.runelite.api.vars.AccountType;
+import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
+import net.runelite.client.events.ConfigChanged;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.game.SkillIconManager;
 import net.runelite.client.game.SpriteManager;
@@ -57,8 +65,8 @@ import net.runelite.client.ui.NavigationButton;
 
 @PluginDescriptor(
 	name = "Farming Profit",
-	description = "Calculates the profit of a farm run",
-	tags = {"farm", "farming", "runs", "run", "profit"}
+	description = "Tracks farm-run profit or XP and ranks the most profitable herbs to plant",
+	tags = {"farm", "farming", "runs", "run", "profit", "herb", "planner", "xp", "ironman", "money"}
 )
 @Slf4j
 public class FarmingProfitPlugin extends Plugin
@@ -72,6 +80,8 @@ public class FarmingProfitPlugin extends Plugin
 	private ItemManager itemManager;
 	@Inject
 	private SpriteManager spriteManager;
+	@Inject
+	private ClientThread clientThread;
 	@Inject
 	private FarmingProfitConfig config;
 
@@ -101,6 +111,12 @@ public class FarmingProfitPlugin extends Plugin
 	final private static int MAX_PATCH_DISTANCE = 20;
 	final private static int MIN_TELEPORT_DISTANCE = 40;
 
+	// Items that grant a herb-yield bonus. Magic secateurs count whether equipped or carried;
+	// the cape must be worn (checked against the equipment container only).
+	private static final int[] MAGIC_SECATEURS_IDS = {ItemID.MAGIC_SECATEURS};
+	private static final int[] FARMING_CAPE_IDS = {
+		ItemID.FARMING_CAPE, ItemID.FARMING_CAPET, ItemID.MAX_CAPE, ItemID.MAX_CAPE_13342};
+
 	// Flags
 	private boolean START_HARVEST_NEXT_GAMETICK = false;
 	private boolean FINISH_HARVEST_NEXT_GAMETICK = false;
@@ -117,7 +133,8 @@ public class FarmingProfitPlugin extends Plugin
 		prevCropInv = HashMultiset.create();
 
 		// Farming Profit Panel
-		panel = new FarmingProfitPanel(itemManager);
+		panel = new FarmingProfitPanel(itemManager, resolveXpMode());
+		panel.setPlannerRefreshAction(() -> clientThread.invoke(this::refreshDisplay));
 		spriteManager.getSpriteAsync(SpriteID.SKILL_FARMING, 0, panel::loadHeaderIcon);
 
 		final BufferedImage icon = new SkillIconManager().getSkillImage(Skill.FARMING, false);
@@ -130,12 +147,127 @@ public class FarmingProfitPlugin extends Plugin
 			.build();
 
 		clientToolbar.addNavigation(navButton);
+
+		// Populate the planner with whatever state is already available.
+		clientThread.invoke(this::refreshDisplay);
 	}
 
 	@Override
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+	}
+
+	// ====================== //
+	//   DISPLAY MODE / PLANNER //
+	// ====================== //
+
+	/**
+	 * Resolve whether to show Farming XP rather than GE profit, honouring the configured
+	 * {@link DisplayMode} (AUTO uses the account type: XP for ironmen, profit otherwise).
+	 * Reads a varbit-backed value, so call on the client thread.
+	 */
+	private boolean resolveXpMode()
+	{
+		switch (config.displayMode())
+		{
+			case XP:
+				return true;
+			case PROFIT:
+				return false;
+			case AUTO:
+			default:
+				final AccountType type = client.getAccountType();
+				return type != null && type.isIronman();
+		}
+	}
+
+	/**
+	 * Re-read live state (display mode, level, gear) and push it to the panel. Must run on the
+	 * client thread; the Swing updates are marshalled onto the EDT.
+	 */
+	private void refreshDisplay()
+	{
+		final boolean xpMode = resolveXpMode();
+		final PlannerInputs inputs = buildPlannerInputs(xpMode);
+		SwingUtilities.invokeLater(() ->
+		{
+			panel.setXpMode(xpMode);
+			panel.updatePlanner(inputs);
+		});
+	}
+
+	private PlannerInputs buildPlannerInputs(boolean xpMode)
+	{
+		final boolean loggedIn = client.getGameState() == GameState.LOGGED_IN;
+		int level = loggedIn ? client.getRealSkillLevel(Skill.FARMING) : 0;
+		final boolean levelKnown = level > 0;
+		if (!levelKnown)
+		{
+			level = 99;
+		}
+
+		final boolean secateurs = containerContains(InventoryID.EQUIPMENT, MAGIC_SECATEURS_IDS)
+			|| containerContains(InventoryID.INVENTORY, MAGIC_SECATEURS_IDS);
+		final boolean cape = containerContains(InventoryID.EQUIPMENT, FARMING_CAPE_IDS);
+
+		return new PlannerInputs(level, levelKnown, secateurs, cape, config.plannerAttas(),
+			config.plannerCompost(), config.plannerPatches(), xpMode);
+	}
+
+	private boolean containerContains(InventoryID inventoryID, int[] ids)
+	{
+		final ItemContainer container = client.getItemContainer(inventoryID);
+		if (container == null)
+		{
+			return false;
+		}
+		for (int id : ids)
+		{
+			if (container.contains(id))
+			{
+				return true;
+			}
+		}
+		return false;
+	}
+
+	@Subscribe
+	public void onGameStateChanged(GameStateChanged event)
+	{
+		if (event.getGameState() == GameState.LOGGED_IN)
+		{
+			refreshDisplay();
+		}
+	}
+
+	@Subscribe
+	public void onStatChanged(StatChanged event)
+	{
+		if (event.getSkill() == Skill.FARMING)
+		{
+			refreshDisplay();
+		}
+	}
+
+	@Subscribe
+	public void onItemContainerChanged(ItemContainerChanged event)
+	{
+		final int id = event.getContainerId();
+		if (id == InventoryID.EQUIPMENT.getId() || id == InventoryID.INVENTORY.getId())
+		{
+			refreshDisplay();
+		}
+	}
+
+	@Subscribe
+	public void onConfigChanged(ConfigChanged event)
+	{
+		// Config changes are posted on the EDT, so hop to the client thread before reading state.
+		if (event.getGroup().equals("farmingProfit"))
+		{
+			clientThread.invoke(this::refreshDisplay);
+		}
 	}
 
 	// ====================== //
@@ -160,8 +292,10 @@ public class FarmingProfitPlugin extends Plugin
 			prevCropInv = getCropInv();
 		}
 
-		// Distance check to make sure all runs will be added to the UI eventually
-		if (latestRun != null)
+		// Distance check to make sure all runs will be added to the UI eventually.
+		// getLocalPlayer() can be null transiently (e.g. just after a world hop while a run is
+		// still pending), so guard before dereferencing.
+		if (latestRun != null && client.getLocalPlayer() != null)
 		{
 			int dist = client.getLocalPlayer().getWorldLocation().distanceTo2D(latestRun.getLatestHarvestWorldPoint());
 			if (dist > MIN_TELEPORT_DISTANCE)
@@ -213,6 +347,7 @@ public class FarmingProfitPlugin extends Plugin
 	public void onMenuOptionClicked(MenuOptionClicked menuOption)
 	{
 		if (menuOption.getMenuAction() == MenuAction.GAME_OBJECT_FIRST_OPTION &&
+			client.getLocalPlayer() != null &&
 			!isHarvestAnim(client.getLocalPlayer().getAnimation()))
 		{
 			latestObjID = menuOption.getId();
@@ -297,6 +432,10 @@ public class FarmingProfitPlugin extends Plugin
 
 		log.debug("Handle harvest of " + amount + "x of " + crop.getDisplayName());
 
+		if (client.getLocalPlayer() == null)
+		{
+			return;
+		}
 		WorldPoint harvestLocation = client.getLocalPlayer().getWorldLocation();
 
 		if (latestRun == null)

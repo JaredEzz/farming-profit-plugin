@@ -42,7 +42,7 @@ class FarmingProfitBox extends JPanel
 	private static final String HTML_LABEL_TEMPLATE =
 		"<html><body style='color:%s'>%s<span style='color:white'>%s</span></body></html>";
 
-	FarmingProfitBox(ItemManager itemManager, FarmingProfitRun run)
+	FarmingProfitBox(ItemManager itemManager, FarmingProfitRun run, boolean xpMode)
 	{
 		// Set panel properties
 		setLayout(new BorderLayout(0, 0));
@@ -60,7 +60,7 @@ class FarmingProfitBox extends JPanel
 		final JLabel runImageLabel = new JLabel();
 		runImageLabel.setVerticalAlignment(SwingConstants.CENTER);
 		runImageLabel.setHorizontalAlignment(SwingConstants.CENTER);
-		itemManager.getImage(run.getCrop().getProductId(), run.getAmount(), true).addTo(runImageLabel);
+		itemManager.getImage(run.getCrop().getHarvestedItemId(), run.getAmount(), true).addTo(runImageLabel);
 		runImage.add(runImageLabel);
 
 		// Run information
@@ -75,12 +75,19 @@ class FarmingProfitBox extends JPanel
 		runTitle.setForeground(Color.WHITE);
 		runInfo.add(runTitle, BorderLayout.NORTH);
 
-		// Run information: Profit
-		final JLabel profitLabel = new JLabel();
-		profitLabel.setText(htmlLabel("Profit: ", run.getProfit()));
-		profitLabel.setFont(FontManager.getRunescapeSmallFont());
-		profitLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
-		runInfo.add(profitLabel, BorderLayout.CENTER);
+		// Run information: Profit or XP, depending on the display mode
+		final JLabel valueLabel = new JLabel();
+		if (xpMode)
+		{
+			valueLabel.setText(htmlLabel("XP: ", Math.round(run.getXp())));
+		}
+		else
+		{
+			valueLabel.setText(htmlLabel("Profit: ", run.getProfit()));
+		}
+		valueLabel.setFont(FontManager.getRunescapeSmallFont());
+		valueLabel.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		runInfo.add(valueLabel, BorderLayout.CENTER);
 
 		// Run information: Amount harvested
 		if (run.getAmount() > 0)

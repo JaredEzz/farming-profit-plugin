@@ -50,6 +50,9 @@ class FarmingProfitRun
 	// Util variables
 	@Getter
 	private int profit;
+	/** Farming XP gained from harvesting this patch (per-herb harvest XP times the amount). */
+	@Getter
+	private double xp;
 	@Getter
 	private String tooltip;
 
@@ -98,9 +101,10 @@ class FarmingProfitRun
 	private void updateProfit()
 	{
 		int seedPrice = itemManager.getItemPrice(crop.getSeedId());
-		int productPrice = itemManager.getItemPrice(crop.getProductId());
+		int productPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
 
 		profit = productPrice * amount - seedPrice * crop.getSeedAmount();
+		xp = amount * crop.getHarvestXp();
 		updateTooltip();
 	}
 
@@ -114,13 +118,14 @@ class FarmingProfitRun
 	{
 		ItemComposition seed = itemManager.getItemComposition(crop.getSeedId());
 		int seedPrice = itemManager.getItemPrice(crop.getSeedId());
-		ItemComposition product = itemManager.getItemComposition(crop.getProductId());
-		int productPrice = itemManager.getItemPrice(crop.getProductId());
+		ItemComposition product = itemManager.getItemComposition(crop.getHarvestedItemId());
+		int productPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
 		tooltip = "<html>Cost: " + crop.getSeedAmount() + "x " + seed.getName() + " " +
 			QuantityFormatter.quantityToStackSize(seedPrice * crop.getSeedAmount()) + "gp<br>" +
 			"Products: " + amount + "x " + product.getName() + " " +
 			QuantityFormatter.quantityToStackSize(productPrice * amount) + "gp<br>" +
-			"Profit: " + QuantityFormatter.quantityToStackSize(getProfit()) + "gp</html>";
+			"Profit: " + QuantityFormatter.quantityToStackSize(getProfit()) + "gp<br>" +
+			"Farming XP: " + QuantityFormatter.quantityToStackSize(Math.round(xp)) + "</html>";
 	}
 
 	public String toString()

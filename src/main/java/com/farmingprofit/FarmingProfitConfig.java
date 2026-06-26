@@ -27,15 +27,44 @@ package com.farmingprofit;
 import net.runelite.client.config.Config;
 import net.runelite.client.config.ConfigGroup;
 import net.runelite.client.config.ConfigItem;
+import net.runelite.client.config.ConfigSection;
+import net.runelite.client.config.Range;
 
 @ConfigGroup("farmingProfit")
 public interface FarmingProfitConfig extends Config
 {
+	@ConfigSection(
+		name = "Tracker",
+		description = "Settings for the live farm-run tracker",
+		position = 0
+	)
+	String trackerSection = "tracker";
+
+	@ConfigSection(
+		name = "Herb planner",
+		description = "Assumptions used by the herb-run profit/XP planner",
+		position = 1
+	)
+	String plannerSection = "planner";
+
+	@ConfigItem(
+		keyName = "displayMode",
+		name = "Value patches by",
+		description = "Show Grand Exchange profit, Farming XP, or auto-detect (XP for ironmen, profit otherwise)",
+		position = 0,
+		section = trackerSection
+	)
+	default DisplayMode displayMode()
+	{
+		return DisplayMode.AUTO;
+	}
+
 	@ConfigItem(
 		keyName = "trackAllotments",
 		name = "Track allotment patches",
 		description = "Track profit made of allotment patches",
-		position = 0
+		position = 1,
+		section = trackerSection
 	)
 	default boolean trackAllotments()
 	{
@@ -46,7 +75,8 @@ public interface FarmingProfitConfig extends Config
 		keyName = "trackHerbs",
 		name = "Track herb patches",
 		description = "Track profit made of herb patches",
-		position = 0
+		position = 2,
+		section = trackerSection
 	)
 	default boolean trackHerbs()
 	{
@@ -57,7 +87,8 @@ public interface FarmingProfitConfig extends Config
 		keyName = "trackHops",
 		name = "Track hops patches",
 		description = "Track profit made of hops patches",
-		position = 0
+		position = 3,
+		section = trackerSection
 	)
 	default boolean trackHops()
 	{
@@ -68,7 +99,8 @@ public interface FarmingProfitConfig extends Config
 		keyName = "trackBushes",
 		name = "Track bush patches",
 		description = "Track profit made of bush patches",
-		position = 0
+		position = 4,
+		section = trackerSection
 	)
 	default boolean trackBushes()
 	{
@@ -79,10 +111,48 @@ public interface FarmingProfitConfig extends Config
 		keyName = "trackSpecial",
 		name = "Track special patches",
 		description = "Track profit made of the special patches, cactus and seaweed",
-		position = 0
+		position = 5,
+		section = trackerSection
 	)
 	default boolean trackSpecial()
 	{
 		return true;
+	}
+
+	@ConfigItem(
+		keyName = "plannerCompost",
+		name = "Compost",
+		description = "Compost applied to your herb patches. Sets the number of harvest lives (more = more herbs).",
+		position = 0,
+		section = plannerSection
+	)
+	default CompostTier plannerCompost()
+	{
+		return CompostTier.ULTRACOMPOST;
+	}
+
+	@Range(min = 1, max = 20)
+	@ConfigItem(
+		keyName = "plannerPatches",
+		name = "Number of patches",
+		description = "How many herb patches you plant per run",
+		position = 1,
+		section = plannerSection
+	)
+	default int plannerPatches()
+	{
+		return 9;
+	}
+
+	@ConfigItem(
+		keyName = "plannerAttas",
+		name = "Attas plant",
+		description = "Whether you grow an Attas plant alongside your run (+5% herb yield)",
+		position = 2,
+		section = plannerSection
+	)
+	default boolean plannerAttas()
+	{
+		return false;
 	}
 }

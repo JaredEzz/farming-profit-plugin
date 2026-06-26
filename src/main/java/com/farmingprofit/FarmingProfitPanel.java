@@ -24,165 +24,74 @@
  */
 package com.farmingprofit;
 
-import javax.swing.SwingUtilities;
-import lombok.extern.slf4j.Slf4j;
+import java.awt.BorderLayout;
+import java.awt.image.BufferedImage;
+import javax.swing.JPanel;
+import javax.swing.border.EmptyBorder;
 import net.runelite.client.game.ItemManager;
 import net.runelite.client.ui.ColorScheme;
-import net.runelite.client.ui.FontManager;
 import net.runelite.client.ui.PluginPanel;
-import net.runelite.client.util.ColorUtil;
-import net.runelite.client.util.QuantityFormatter;
+import net.runelite.client.ui.components.materialtabs.MaterialTab;
+import net.runelite.client.ui.components.materialtabs.MaterialTabGroup;
 
-import javax.swing.BoxLayout;
-import javax.swing.ImageIcon;
-import javax.swing.JLabel;
-import javax.swing.JMenuItem;
-import javax.swing.JPanel;
-import javax.swing.JPopupMenu;
-import javax.swing.border.EmptyBorder;
-import java.awt.BorderLayout;
-import java.awt.GridLayout;
-import java.awt.image.BufferedImage;
-
-@Slf4j
+/**
+ * Side-panel container hosting the two tabs of the plugin: the live run "Tracker" and the herb
+ * "Planner".
+ */
 class FarmingProfitPanel extends PluginPanel
 {
-	private static final String HTML_LABEL_TEMPLATE =
-		"<html><body style='color:%s'>%s<span style='color:white'>%s</span></body></html>";
+	private final FarmingProfitTrackerPanel trackerPanel;
+	private final FarmingProfitPlannerPanel plannerPanel;
 
-	private final JPanel runsContainer = new JPanel();
-	private final JLabel overallIcon = new JLabel();
-	private final JLabel overallProfitLabel = new JLabel();
-	private final JLabel overallPatchesLabel = new JLabel();
-	private final JLabel overallProductsLabel = new JLabel();
-	private final ItemManager itemManager;
-	private int overallProfit;
-	private int overallPatches;
-	private int overallProducts;
-
-	FarmingProfitPanel(ItemManager itemManager)
+	FarmingProfitPanel(ItemManager itemManager, boolean xpMode)
 	{
-		this.itemManager = itemManager;
+		// wrap=true so long tracker/planner lists scroll
+		super(true);
 
-		// Set panel properties
-		setBorder(new EmptyBorder(6, 6, 6, 6));
-		setBackground(ColorScheme.DARK_GRAY_COLOR);
+		trackerPanel = new FarmingProfitTrackerPanel(itemManager, xpMode);
+		plannerPanel = new FarmingProfitPlannerPanel(itemManager);
+
 		setLayout(new BorderLayout());
+		setBorder(new EmptyBorder(8, 8, 8, 8));
 
-		// Create layout panel
-		final JPanel layoutPanel = new JPanel();
-		layoutPanel.setLayout(new BoxLayout(layoutPanel, BoxLayout.Y_AXIS));
-		add(layoutPanel, BorderLayout.NORTH);
+		final JPanel display = new JPanel(new BorderLayout());
+		final MaterialTabGroup tabGroup = new MaterialTabGroup(display);
+		tabGroup.setBorder(new EmptyBorder(0, 0, 8, 0));
 
-		// Create panel that will contain overall data
-		JPanel overallPanel = new JPanel();
-		overallPanel.setBorder(new EmptyBorder(10, 10, 10, 10));
-		overallPanel.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		overallPanel.setLayout(new BorderLayout());
+		final MaterialTab trackerTab = new MaterialTab("Tracker", tabGroup, trackerPanel);
+		final MaterialTab plannerTab = new MaterialTab("Planner", tabGroup, plannerPanel);
+		tabGroup.addTab(trackerTab);
+		tabGroup.addTab(plannerTab);
+		tabGroup.select(trackerTab);
 
-		// Add icon and contents
-		final JPanel overallInfo = new JPanel();
-		overallInfo.setBackground(ColorScheme.DARKER_GRAY_COLOR);
-		overallInfo.setLayout(new GridLayout(3, 1));
-		overallInfo.setBorder(new EmptyBorder(0, 10, 0, 0));
-		overallProfitLabel.setFont(FontManager.getRunescapeSmallFont());
-		overallPatchesLabel.setFont(FontManager.getRunescapeSmallFont());
-		overallProductsLabel.setFont(FontManager.getRunescapeSmallFont());
-		overallInfo.add(overallProfitLabel, 0);
-		overallInfo.add(overallPatchesLabel, 1);
-		overallInfo.add(overallProductsLabel, 2);
-		overallPanel.add(overallIcon, BorderLayout.WEST);
-		overallPanel.add(overallInfo, BorderLayout.CENTER);
+		add(tabGroup, BorderLayout.NORTH);
+		add(display, BorderLayout.CENTER);
 
-		// Create reset all popup menu
-		final JMenuItem reset = new JMenuItem("Reset");
-		reset.addActionListener(e ->
-		{
-			overallProducts = 0;
-			overallProfit = 0;
-			overallPatches = 0;
-			updateOverall();
-			runsContainer.removeAll();
-			runsContainer.repaint();
-		});
-
-		final JPopupMenu popupMenu = new JPopupMenu();
-		popupMenu.setBorder(new EmptyBorder(5, 5, 5, 5));
-		popupMenu.add(reset);
-		overallPanel.setComponentPopupMenu(popupMenu);
-
-		// Create loot logs wrapper
-		runsContainer.setLayout(new BoxLayout(runsContainer, BoxLayout.Y_AXIS));
-		layoutPanel.add(overallPanel);
-		layoutPanel.add(runsContainer);
-
-		// Update overall variables
-		updateOverall();
+		setBackground(ColorScheme.DARK_GRAY_COLOR);
 	}
 
 	void addRun(FarmingProfitRun run)
 	{
-		final FarmingProfitBox box = new FarmingProfitBox(itemManager, run);
-
-		// Create remove run popup menu
-		final JMenuItem reset = new JMenuItem("Remove");
-		reset.addActionListener(e ->
-		{
-			overallProfit -= run.getProfit();
-			overallProducts -= run.getAmount();
-			overallPatches -= 1;
-			updateOverall();
-			runsContainer.remove(box);
-			runsContainer.repaint();
-		});
-		// Copy
-		final JMenuItem copyRun = new JMenuItem("Copy");
-		copyRun.addActionListener(e -> addRun(run));
-		// Add dead run
-		final JMenuItem addDeadRun = new JMenuItem("Dead patch");
-		addDeadRun.addActionListener(e ->
-		{
-			SwingUtilities.invokeLater(() ->
-			{
-				FarmingProfitRun deadRun = run;
-				deadRun.addAmount(-run.getAmount());
-				addRun(deadRun);
-			});
-		});
-		final JPopupMenu popupMenu = new JPopupMenu();
-		popupMenu.setBorder(new EmptyBorder(5, 5, 5, 5));
-		popupMenu.add(reset);
-		popupMenu.add(copyRun);
-		popupMenu.add(addDeadRun);
-		box.setComponentPopupMenu(popupMenu);
-
-		// Add run box to the runs container
-		runsContainer.add(box, 0);
-		runsContainer.repaint();
-
-		// Update overall variables
-		overallProfit += run.getProfit();
-		overallProducts += run.getAmount();
-		overallPatches += 1;
-		updateOverall();
+		trackerPanel.addRun(run);
 	}
 
 	void loadHeaderIcon(BufferedImage img)
 	{
-		overallIcon.setIcon(new ImageIcon(img));
+		trackerPanel.loadHeaderIcon(img);
 	}
 
-	private static String htmlLabel(String key, long value)
+	void setXpMode(boolean xpMode)
 	{
-		final String valueStr = QuantityFormatter.quantityToStackSize(value);
-		return String.format(HTML_LABEL_TEMPLATE, ColorUtil.toHexColor(ColorScheme.LIGHT_GRAY_COLOR), key, valueStr);
+		trackerPanel.setXpMode(xpMode);
 	}
 
-	private void updateOverall()
+	void updatePlanner(PlannerInputs inputs)
 	{
-		overallProfitLabel.setText(htmlLabel("Total profit: ", overallProfit));
-		overallPatchesLabel.setText(htmlLabel("Total patches: ", overallPatches));
-		overallProductsLabel.setText(htmlLabel("Total products: ", overallProducts));
+		plannerPanel.update(inputs);
 	}
 
+	void setPlannerRefreshAction(Runnable onRefresh)
+	{
+		plannerPanel.setOnRefresh(onRefresh);
+	}
 }
