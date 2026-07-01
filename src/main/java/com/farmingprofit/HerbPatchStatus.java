@@ -43,7 +43,7 @@ final class HerbPatchStatus
 	final long readyAtEpochSeconds;
 	/** Growing snapshot past its grow window or older than a full cycle — show "verify". */
 	final boolean staleVerify;
-	/** In-game item representing the patch's location (teleport item), for the location icon. */
+	/** Teleport item for the patch's location, used for the location icon. */
 	final int teleportItemId;
 
 	HerbPatchStatus(String patchName, Crop crop, State state, long readyAtEpochSeconds,

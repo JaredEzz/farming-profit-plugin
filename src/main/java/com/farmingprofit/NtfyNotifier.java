@@ -39,16 +39,13 @@ import okhttp3.RequestBody;
 import okhttp3.Response;
 
 /**
- * Publishes a push notification to an <a href="https://ntfy.sh">ntfy</a> topic with a single
- * asynchronous HTTP POST. The user pastes a full topic URL (e.g. {@code https://ntfy.sh/my-herb-runs}
- * or a self-hosted {@code https://ntfy.example.com/topic}); the message text becomes the POST body
- * and the title is sent in the {@code Title} header. For protected topics an access token may be
- * appended to the URL after a pipe, e.g. {@code https://ntfy.sh/my-topic|tk_xxxxx}, which is sent as
- * {@code Authorization: Bearer tk_xxxxx}.
+ * Publishes a push notification to an <a href="https://ntfy.sh">ntfy</a> topic. The user pastes a
+ * full topic URL, e.g. {@code https://ntfy.sh/my-herb-runs}; the message becomes the POST body and
+ * the title goes in the {@code Title} header. A Bearer token for protected topics can be appended
+ * after a pipe: {@code https://ntfy.sh/my-topic|tk_xxxxx}.
  *
- * <p>The POST is fired with {@link Call#enqueue(Callback)} so it runs on OkHttp's dispatcher thread
- * pool — never on the game/client thread or the Swing EDT. All failures are swallowed and logged so a
- * dead endpoint can never break the plugin.
+ * <p>Sent via {@link Call#enqueue(Callback)} on OkHttp's dispatcher thread, never the client thread
+ * or EDT. Failures are logged and swallowed so a dead endpoint can't break the plugin.
  */
 @Slf4j
 @Singleton
@@ -67,15 +64,13 @@ class NtfyNotifier
 	/**
 	 * Enqueue one async POST to the configured ntfy URL. No-op when the URL is blank or unparseable.
 	 *
-	 * @param rawUrl  the topic URL, optionally suffixed with {@code |<token>} for a Bearer token
-	 * @param title   notification title (sent as the {@code Title} header); may be null/blank
-	 * @param message notification body text (the POST body)
+	 * @param rawUrl the topic URL, optionally suffixed with {@code |<token>} for a Bearer token
 	 */
 	void send(String rawUrl, String title, String message)
 	{
 		if (rawUrl == null || rawUrl.trim().isEmpty())
 		{
-			return; // not configured — silently do nothing
+			return;
 		}
 
 		// Allow "<url>|<token>" so a Bearer token for a protected topic can live alongside the URL.

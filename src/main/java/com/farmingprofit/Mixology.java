@@ -60,10 +60,8 @@ final class Mixology
 	 * One refinable herb and the paste it yields. Verified against the OSRS Wiki "Mastering
 	 * Mixology" herb/paste table (https://oldschool.runescape.wiki/w/Mastering_Mixology).
 	 *
-	 * <p>Important: contrary to a common misconception, each herb on the wiki table yields paste of
-	 * exactly ONE colour (the amount shown is the paste obtained from refining one clean herb /
-	 * unfinished potion of that herb). No herb yields paste in multiple colours. We therefore model
-	 * a herb as a single (resin, amount) pair; the other two colours are implicitly zero.
+	 * <p>Each herb yields paste of exactly one colour, so it's modelled as a single (resin, amount)
+	 * pair; the other two colours are implicitly zero.
 	 */
 	static final class Herb
 	{
@@ -85,8 +83,7 @@ final class Mixology
 		}
 	}
 
-	// Herbs in standard Herblore order. Source: OSRS Wiki "Mastering Mixology" herb/paste table
-	// (verified 2026-06). Each herb -> single paste colour and amount per refined herb.
+	// Herbs in standard Herblore order; source: OSRS Wiki "Mastering Mixology" herb/paste table.
 	static final List<Herb> HERBS = new ArrayList<>();
 
 	static
@@ -145,8 +142,8 @@ final class Mixology
 		}
 	}
 
-	// Reward shop costs (Mox, Aga, Lye). Source: OSRS Wiki "Mastering Mixology" reward table,
-	// cross-checked against VM9797/easy-mixology MixologyRewards (verified 2026-06).
+	// Reward shop costs (Mox, Aga, Lye); source: OSRS Wiki "Mastering Mixology" reward table,
+	// cross-checked against VM9797/easy-mixology MixologyRewards.
 	static final List<Reward> REWARDS = new ArrayList<>();
 
 	static

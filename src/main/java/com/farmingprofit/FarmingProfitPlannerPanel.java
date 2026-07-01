@@ -222,9 +222,8 @@ class FarmingProfitPlannerPanel extends JPanel
 	}
 
 	/**
-	 * Update the Mastering Mixology section. A null status (feature disabled) hides the section; a
-	 * status with no goals shows balances only; with goals it shows the herbs needed per resin colour.
-	 * Called on the EDT.
+	 * A null status (feature disabled) hides the section; a status with no goals shows balances
+	 * only; with goals it shows herbs needed per resin colour. Called on the EDT.
 	 */
 	void updateMixology(MixologyStatus status)
 	{

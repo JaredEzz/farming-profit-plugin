@@ -134,7 +134,7 @@ class HerbRunHelperPanel extends JPanel
 		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
 		row.setBorder(new EmptyBorder(3, 6, 3, 6));
 
-		// Left: a small location icon (the teleport item players use to reach the patch).
+		// Left: the location icon.
 		if (showLocationIcons && s.teleportItemId > 0)
 		{
 			final JLabel loc = new JLabel();

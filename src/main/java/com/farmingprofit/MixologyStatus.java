@@ -37,11 +37,10 @@ import java.util.Map;
  * renders it on the EDT without touching the client. Like {@link HerbPatchStatus} it carries no
  * behaviour beyond the convenience accessors the panel needs.
  *
- * <p>Resin balance varbits (verified against RuneLite {@code net.runelite.api.gameval.VarbitID}):
+ * <p>Resin balance varbits (per RuneLite {@code net.runelite.api.gameval.VarbitID}):
  * {@code MM_AVAILABLE_MOX=11431}, {@code MM_AVAILABLE_AGA=11432}, {@code MM_AVAILABLE_LYE=11433}.
- * Note these are the hopper/available paste counts; the player's spendable resin balance lives in
- * varbits 4416 (Mox), 4415 (Aga), 4414 (Lye) per the easy-mixology plugin. The plugin decides which
- * to read; this DTO only stores the resulting numbers.
+ * These are the hopper/available paste counts, not the player's spendable resin balance, which
+ * lives in varbits 4416 (Mox), 4415 (Aga), 4414 (Lye) per the easy-mixology plugin.
  */
 final class MixologyStatus
 {

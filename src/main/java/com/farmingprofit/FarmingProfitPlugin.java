@@ -219,8 +219,7 @@ public class FarmingProfitPlugin extends Plugin
 		clientToolbar.removeNavigation(navButton);
 		// RuneLite reuses this plugin instance across a disable->enable cycle, so reset load state and
 		// the transient mid-harvest flags. Without resetting runsLoaded, the next startUp()'s fresh
-		// (empty) panel would never re-import the on-disk run history (loadRuns early-returns) — that
-		// was the "toggling the plugin loses my history" bug.
+		// (empty) panel would never re-import the on-disk run history (loadRuns early-returns).
 		runsLoaded = false;
 		latestRun = null;
 		startedHarvesting = false;
@@ -1197,9 +1196,6 @@ public class FarmingProfitPlugin extends Plugin
 	//      UTIL METHODS      //
 	// ====================== //
 
-	/**
-	 * Submit the latest run to the UI
-	 */
 	private static final String RUN_HISTORY_KEY = "runHistory";
 	private static final Type RUN_HISTORY_TYPE = new TypeToken<List<RunRecord>>()
 	{

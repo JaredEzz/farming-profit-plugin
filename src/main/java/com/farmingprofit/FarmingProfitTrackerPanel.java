@@ -213,10 +213,6 @@ class FarmingProfitTrackerPanel extends JPanel
 		herbRunPanel.setCompostBucket(uses);
 	}
 
-	/**
-	 * Collapse (expand=false) or expand (expand=true) every PAST run, leaving the latest run's state
-	 * untouched. Past runs are all groups except index 0 (the newest).
-	 */
 	/** Permanently delete one run from the history and persist the change. */
 	private void deleteRun(RunGroup group)
 	{
@@ -226,6 +222,7 @@ class FarmingProfitTrackerPanel extends JPanel
 		onChanged.run();
 	}
 
+	/** Collapse or expand every past run (all groups except index 0, the newest). */
 	private void setPastRunsExpanded(boolean expand)
 	{
 		for (int i = 1; i < groups.size(); i++)
@@ -412,8 +409,10 @@ class FarmingProfitTrackerPanel extends JPanel
 		runsContainer.repaint();
 	}
 
-	/** Build one run: a clickable header, and (when expanded) the graph, the live harvesting row
-	 * (newest run only, below the chart), and the per-patch rows. */
+	/**
+	 * Build one run: a clickable header, and (when expanded) the graph, the live harvesting row
+	 * (newest run only, below the chart), and the per-patch rows.
+	 */
 	private JPanel buildRunPanel(RunGroup group, boolean isNewest)
 	{
 		final JPanel panel = new JPanel();
