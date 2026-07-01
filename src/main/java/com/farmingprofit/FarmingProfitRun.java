@@ -25,6 +25,7 @@
 package com.farmingprofit;
 
 import lombok.Getter;
+import lombok.Setter;
 import net.runelite.api.ItemComposition;
 import net.runelite.api.coords.WorldPoint;
 import net.runelite.client.game.ItemManager;
@@ -55,9 +56,16 @@ class FarmingProfitRun
 	private double xp;
 	@Getter
 	private String tooltip;
+	/** Expected herbs for this patch given level/compost/gear; 0 when not computed / not a herb. */
+	@Getter
+	@Setter
+	private double expectedYield;
 
 	// Item manager
 	private ItemManager itemManager;
+
+	/** Set for runs restored from saved history (no live WorldPoint); overrides the derived region. */
+	private Integer restoredRegionId;
 
 
 	FarmingProfitRun(ItemManager itemManager, Crop crop, int amount, WorldPoint latestHarvest, int gameObjClicked)
@@ -66,6 +74,20 @@ class FarmingProfitRun
 		this.crop = crop;
 		this.gameObjClicked = gameObjClicked;
 		updateRun(amount, latestHarvest);
+	}
+
+	/** Rebuild a finished run from persisted values (no price recompute / itemManager needed). */
+	FarmingProfitRun(Crop crop, int amount, int regionId, int profit, double xp,
+		double expectedYield, LocalDateTime time)
+	{
+		this.crop = crop;
+		this.amount = amount;
+		this.restoredRegionId = regionId;
+		this.profit = profit;
+		this.xp = xp;
+		this.expectedYield = expectedYield;
+		this.latestHarvestTime = time;
+		this.tooltip = "<html>" + getPatchName() + ": " + amount + "x " + crop.getDisplayName() + "</html>";
 	}
 
 	/**
@@ -126,6 +148,23 @@ class FarmingProfitRun
 			QuantityFormatter.quantityToStackSize(productPrice * amount) + "gp<br>" +
 			"Profit: " + QuantityFormatter.quantityToStackSize(getProfit()) + "gp<br>" +
 			"Farming XP: " + QuantityFormatter.quantityToStackSize(Math.round(xp)) + "</html>";
+	}
+
+	/** Map region this patch sits in, used to group patches into run cycles. */
+	int getRegionId()
+	{
+		if (restoredRegionId != null)
+		{
+			return restoredRegionId;
+		}
+		return latestHarvestWorldPoint == null ? -1 : latestHarvestWorldPoint.getRegionID();
+	}
+
+	/** Friendly patch name (e.g. "Catherby"), or the crop name if the region isn't a known herb patch. */
+	String getPatchName()
+	{
+		final HerbPatches.HerbPatch patch = HerbPatches.forRegion(getRegionId());
+		return patch != null ? patch.name : crop.getDisplayName();
 	}
 
 	public String toString()

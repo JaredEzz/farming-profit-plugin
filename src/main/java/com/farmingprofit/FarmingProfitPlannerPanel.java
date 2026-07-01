@@ -26,10 +26,11 @@ package com.farmingprofit;
 
 import java.awt.BorderLayout;
 import java.awt.Color;
+import java.awt.Cursor;
 import java.awt.Dimension;
 import java.awt.GridLayout;
-import java.util.ArrayList;
-import java.util.Comparator;
+import java.awt.event.MouseAdapter;
+import java.awt.event.MouseEvent;
 import java.util.List;
 import javax.swing.BoxLayout;
 import javax.swing.JButton;
@@ -52,6 +53,11 @@ class FarmingProfitPlannerPanel extends JPanel
 	private final JLabel assumptionsLabel = new JLabel();
 	private final JLabel bestLabel = new JLabel();
 	private final JPanel rowsContainer = new JPanel();
+
+	/** Mastering Mixology section (below the herb ranking); hidden when disabled in config. */
+	private final JPanel mixologyContainer = new JPanel();
+	private boolean mixologyExpanded = true;
+	private MixologyStatus mixologyStatus;
 
 	/** Set by the plugin; asks it to re-read live state and call {@link #update}. */
 	private Runnable onRefresh = () -> { };
@@ -93,8 +99,14 @@ class FarmingProfitPlannerPanel extends JPanel
 		rowsContainer.setLayout(new BoxLayout(rowsContainer, BoxLayout.Y_AXIS));
 		rowsContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
 
+		mixologyContainer.setLayout(new BoxLayout(mixologyContainer, BoxLayout.Y_AXIS));
+		mixologyContainer.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		mixologyContainer.setBorder(new EmptyBorder(10, 0, 0, 0));
+		mixologyContainer.setVisible(false);
+
 		layoutPanel.add(header);
 		layoutPanel.add(rowsContainer);
+		layoutPanel.add(mixologyContainer);
 
 		bestLabel.setText("Herb planner");
 		assumptionsLabel.setText("Log in to rank herbs for your account.");
@@ -106,43 +118,12 @@ class FarmingProfitPlannerPanel extends JPanel
 	}
 
 	/**
-	 * Recompute and redraw the ranked herb list for the given inputs.
+	 * Redraw the planner for the given inputs and pre-ranked herb list. The ranking (which reads
+	 * live GE prices) is computed on the client thread by the plugin and passed in here, so this
+	 * method only touches Swing and never the client.
 	 */
-	void update(PlannerInputs in)
+	void update(PlannerInputs in, List<HerbResult> results)
 	{
-		final int lives = in.getCompost().getHarvestLives();
-		final double itemBonus = in.itemBonusPct();
-
-		final List<HerbResult> results = new ArrayList<>();
-		for (Crop crop : Crop.values())
-		{
-			if (crop.getPatchType() != PatchType.HERBS)
-			{
-				continue;
-			}
-			if (crop.getFarmingLevel() > in.getFarmingLevel())
-			{
-				continue;
-			}
-
-			final double yieldPerPatch = HerbYield.expectedYieldPerPatch(
-				crop, in.getFarmingLevel(), lives, itemBonus, in.isAttas());
-
-			final int seedPrice = itemManager.getItemPrice(crop.getSeedId());
-			final int herbPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
-
-			final double profitPerRun = (yieldPerPatch * herbPrice - (double) seedPrice * crop.getSeedAmount())
-				* in.getPatches();
-			final double xpPerRun = (crop.getPlantXp() + yieldPerPatch * crop.getHarvestXp()) * in.getPatches();
-
-			results.add(new HerbResult(crop, yieldPerPatch, Math.round(profitPerRun), xpPerRun));
-		}
-
-		final Comparator<HerbResult> byValue = in.isXpMode()
-			? Comparator.comparingDouble(r -> r.xpPerRun)
-			: Comparator.comparingLong(r -> r.profitPerRun);
-		results.sort(byValue.reversed());
-
 		// Header text
 		final String mode = in.isXpMode() ? "XP" : "profit";
 		final StringBuilder gear = new StringBuilder();
@@ -240,20 +221,115 @@ class FarmingProfitPlannerPanel extends JPanel
 		return QuantityFormatter.quantityToStackSize(r.profitPerRun) + " gp";
 	}
 
-	/** One ranked herb, with its expected yield and per-run value. */
-	private static final class HerbResult
+	/**
+	 * Update the Mastering Mixology section. A null status (feature disabled) hides the section; a
+	 * status with no goals shows balances only; with goals it shows the herbs needed per resin colour.
+	 * Called on the EDT.
+	 */
+	void updateMixology(MixologyStatus status)
 	{
-		private final Crop crop;
-		private final double yieldPerPatch;
-		private final long profitPerRun;
-		private final double xpPerRun;
+		this.mixologyStatus = status;
+		rebuildMixology();
+	}
 
-		private HerbResult(Crop crop, double yieldPerPatch, long profitPerRun, double xpPerRun)
+	private void rebuildMixology()
+	{
+		mixologyContainer.removeAll();
+		final MixologyStatus status = mixologyStatus;
+		if (status == null)
 		{
-			this.crop = crop;
-			this.yieldPerPatch = yieldPerPatch;
-			this.profitPerRun = profitPerRun;
-			this.xpPerRun = xpPerRun;
+			mixologyContainer.setVisible(false);
+			mixologyContainer.revalidate();
+			mixologyContainer.repaint();
+			return;
 		}
+		mixologyContainer.setVisible(true);
+
+		final JPanel header = new JPanel(new BorderLayout());
+		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		header.setBorder(new EmptyBorder(6, 8, 6, 8));
+		header.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+		final JLabel title = new JLabel((mixologyExpanded ? "▾ " : "▸ ") + "Mastering Mixology");
+		title.setFont(FontManager.getRunescapeSmallFont());
+		title.setForeground(Color.WHITE);
+		header.add(title, BorderLayout.WEST);
+		if (status.hasGoals() && status.isAllMet())
+		{
+			final JLabel right = new JLabel("all met ✓");
+			right.setFont(FontManager.getRunescapeSmallFont());
+			right.setForeground(ColorScheme.PROGRESS_COMPLETE_COLOR);
+			right.setHorizontalAlignment(SwingConstants.RIGHT);
+			header.add(right, BorderLayout.EAST);
+		}
+		header.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				mixologyExpanded = !mixologyExpanded;
+				rebuildMixology();
+			}
+		});
+		mixologyContainer.add(header);
+
+		if (mixologyExpanded)
+		{
+			if (!status.hasGoals())
+			{
+				final JLabel note = new JLabel("<html>Showing resin balances. Set reward goals in the "
+					+ "Easy Mixology plugin to see herbs needed.</html>");
+				note.setFont(FontManager.getRunescapeSmallFont());
+				note.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+				note.setBorder(new EmptyBorder(4, 8, 0, 8));
+				mixologyContainer.add(note);
+			}
+			for (MixologyStatus.ColourLine line : status.getLines())
+			{
+				mixologyContainer.add(buildMixologyRow(line, status.hasGoals()));
+			}
+		}
+
+		mixologyContainer.revalidate();
+		mixologyContainer.repaint();
+	}
+
+	private JPanel buildMixologyRow(MixologyStatus.ColourLine line, boolean hasGoals)
+	{
+		final JPanel row = new JPanel(new BorderLayout());
+		row.setBorder(new EmptyBorder(4, 0, 0, 0));
+		row.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+		final JPanel info = new JPanel(new GridLayout(2, 1));
+		info.setBorder(new EmptyBorder(4, 8, 4, 6));
+		info.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+
+		final JLabel name = new JLabel(hasGoals
+			? line.colourName + "  " + line.balance + " / " + line.goal
+			: line.colourName + "  " + line.balance);
+		name.setFont(FontManager.getRunescapeSmallFont());
+		name.setForeground(Color.WHITE);
+
+		final JLabel detail = new JLabel();
+		detail.setFont(FontManager.getRunescapeSmallFont());
+		if (!hasGoals)
+		{
+			detail.setText("resin");
+			detail.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		}
+		else if (line.met)
+		{
+			detail.setText("met ✓");
+			detail.setForeground(ColorScheme.PROGRESS_COMPLETE_COLOR);
+		}
+		else
+		{
+			final String herb = line.bestHerbName != null ? " " + line.bestHerbName : "";
+			detail.setText("need " + line.deficit + " · ~" + line.herbsNeeded + herb);
+			detail.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		}
+		info.add(name);
+		info.add(detail);
+		row.add(info, BorderLayout.CENTER);
+		return row;
 	}
 }

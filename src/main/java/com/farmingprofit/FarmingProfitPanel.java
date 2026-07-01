@@ -85,9 +85,49 @@ class FarmingProfitPanel extends PluginPanel
 		trackerPanel.setXpMode(xpMode);
 	}
 
-	void updatePlanner(PlannerInputs inputs)
+	void setGraphConfig(boolean showGraph, java.awt.Color expectedColor, java.awt.Color actualColor)
 	{
-		plannerPanel.update(inputs);
+		trackerPanel.setGraphConfig(showGraph, expectedColor, actualColor);
+	}
+
+	void updatePlanner(PlannerInputs inputs, java.util.List<HerbResult> results)
+	{
+		plannerPanel.update(inputs, results);
+	}
+
+	void updateMixology(MixologyStatus status)
+	{
+		plannerPanel.updateMixology(status);
+	}
+
+	void updateHerbRun(java.util.List<HerbPatchStatus> statuses, boolean showLocationIcons)
+	{
+		trackerPanel.updateHerbRun(statuses, showLocationIcons);
+	}
+
+	void updateCompostBucket(int uses)
+	{
+		trackerPanel.setCompostBucket(uses);
+	}
+
+	void setCurrentHarvest(FarmingProfitRun run)
+	{
+		trackerPanel.setCurrentHarvest(run);
+	}
+
+	void setRunHistoryChanged(Runnable onChanged)
+	{
+		trackerPanel.setOnChanged(onChanged);
+	}
+
+	java.util.List<RunRecord> exportRecords()
+	{
+		return trackerPanel.exportRecords();
+	}
+
+	void importRecords(java.util.List<RunRecord> records)
+	{
+		trackerPanel.importRecords(records);
 	}
 
 	void setPlannerRefreshAction(Runnable onRefresh)
