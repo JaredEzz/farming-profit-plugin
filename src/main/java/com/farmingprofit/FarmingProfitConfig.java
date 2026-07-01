@@ -67,7 +67,10 @@ public interface FarmingProfitConfig extends Config
 
 	@ConfigSection(
 		name = "Notifications",
-		description = "Push a phone notification (via ntfy) when your next herb run is ready",
+		description = "Push a phone notification (via ntfy) when your next herb run is ready. Warning: "
+			+ "when enabled, a short text message (a patch/herb count, no account info) is sent over "
+			+ "HTTPS to the ntfy URL you configure below, which may be a third-party server (ntfy.sh by "
+			+ "default, or any self-hosted server you choose).",
 		position = 4,
 		closedByDefault = true
 	)
@@ -334,8 +337,9 @@ public interface FarmingProfitConfig extends Config
 	@ConfigItem(
 		keyName = "ntfyEnabled",
 		name = "Push herb-run notifications",
-		description = "When your whole herb run is ready, send a push notification to your phone via "
-			+ "ntfy. Only fires while RuneLite is running and you are logged in.",
+		description = "When your whole herb run is ready, send a push notification (via an HTTPS POST "
+			+ "containing only a short status message, no account details) to the ntfy URL configured "
+			+ "below. Off by default; only fires while RuneLite is running.",
 		position = 0,
 		section = notificationsSection
 	)
