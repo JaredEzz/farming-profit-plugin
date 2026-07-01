@@ -36,6 +36,25 @@ are boosted by your gear before the level interpolation — matching
 > the herb ranking and vary by patch. Magic secateurs / Farming cape are untradeable, so they're
 > detected, never priced.
 
+### Notifications
+
+Optionally pushes a phone notification via [ntfy](https://ntfy.sh) when your whole herb run is
+ready — including while you're logged out, as long as RuneLite itself is still open.
+
+Off by default. Enable it in **Farming Profit config → Notifications → Push herb-run
+notifications**, then set **ntfy topic URL** to a topic on the public `ntfy.sh` server (e.g.
+`https://ntfy.sh/<something-long-and-random>`) or a self-hosted ntfy instance — any
+ntfy-compatible URL works, the plugin doesn't require its own server.
+
+* `ntfy.sh` topics are unauthenticated by name — the topic name *is* the only privacy boundary,
+  so pick something long and unguessable rather than your username or "herbs". Anyone who knows
+  the exact topic can subscribe or publish to it.
+* For an access-controlled topic, append a Bearer token after a pipe:
+  `https://ntfy.sh/my-topic|tk_xxxxxxxxxx`.
+* Sends only a short status message (a patch count, no account info) over HTTPS.
+* **Notify per patch** switches from one push for the whole run to one per individual patch as
+  it finishes.
+
 ## Attribution
 
 This plugin is the externalised version of the original
