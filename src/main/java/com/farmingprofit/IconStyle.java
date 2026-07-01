@@ -25,7 +25,7 @@
 package com.farmingprofit;
 
 /** Which default item set the patch location icons use (per-patch overrides still win). */
-enum IconStyle
+public enum IconStyle
 {
 	TELEPORTS("Teleport tablets"),
 	THEMED("Themed (capes/rings)");
