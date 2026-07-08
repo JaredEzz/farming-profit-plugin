@@ -688,6 +688,13 @@ public class FarmingProfitPlugin extends Plugin
 			loadRuns();
 			refreshDisplay();
 		}
+		else if (event.getGameState() == GameState.LOGIN_SCREEN || event.getGameState() == GameState.HOPPING)
+		{
+			// Drop any observed herb-patch state on logout/world-hop so a DEAD patch seen on one
+			// character can't leak into another character's (or the same account's next) session
+			// and fire a phantom 0-herb "dead patch cleared" run entry.
+			lastHerbPatchState.clear();
+		}
 	}
 
 	@Subscribe
@@ -837,6 +844,23 @@ public class FarmingProfitPlugin extends Plugin
 		// world hop / region load while a run is still pending), so guard before dereferencing.
 		final WorldPoint playerLoc = client.getLocalPlayer() != null
 			? client.getLocalPlayer().getWorldLocation() : null;
+
+		// Seed lastHerbPatchState for the region the player is standing in, without clobbering a
+		// value onVarbitChanged already recorded. Without this, a patch that's already DEAD the
+		// first time this session observes its region (e.g. logging in right at it) has no prior
+		// state to compare against when it's cleared, so handleDeadPatchCleared never fires and
+		// that 0-herb patch silently drops out of the run history. onGameTick runs every tick, so
+		// this always seeds DEAD before the player can finish digging it up.
+		if (playerLoc != null)
+		{
+			final HerbPatches.HerbPatch here = HerbPatches.forRegion(playerLoc.getRegionID());
+			if (here != null)
+			{
+				lastHerbPatchState.putIfAbsent(here.regionId,
+					HerbPatches.decodeState(client.getVarbitValue(here.varbit)));
+			}
+		}
+
 		if (latestRun != null && playerLoc != null)
 		{
 			int dist = playerLoc.distanceTo2D(latestRun.getLatestHarvestWorldPoint());
