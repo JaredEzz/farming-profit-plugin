@@ -137,8 +137,14 @@ public class FarmingProfitPlugin extends Plugin
 		ItemID.FARMING_CAPE, ItemID.FARMING_CAPET, ItemID.MAX_CAPE, ItemID.MAX_CAPE_13342};
 
 	// Bottomless compost bucket: item 22994 (empty) / 22997 (filled); the remaining uses are stored in
-	// varbit 7916 (FARMING_TOOLS_BOTTOMLESS_BUCKET_QUANTITY), valid whenever logged in.
-	private static final int[] BOTTOMLESS_BUCKET_IDS = {22994, 22997};
+	// varbit 7916 (FARMING_TOOLS_BOTTOMLESS_BUCKET_QUANTITY). That varbit is a single global slot
+	// shared by every bottomless bucket the account owns (like the "current bucket" the game last
+	// touched), not one scoped to the specific bucket sitting in your inventory right now - so it
+	// only reflects reality once you've Filled/Checked/used the bucket you're currently carrying.
+	// Gate on the filled item variant specifically: an empty bucket is unambiguously 0 uses, and
+	// trusting the varbit there risks showing a stale count left over from a different bucket.
+	private static final int EMPTY_BOTTOMLESS_BUCKET_ID = 22994;
+	private static final int FILLED_BOTTOMLESS_BUCKET_ID = 22997;
 	private static final int VARBIT_BUCKET_QUANTITY = 7916;
 
 	// Flags
@@ -281,9 +287,16 @@ public class FarmingProfitPlugin extends Plugin
 		final List<HerbPatchStatus> herbStatuses = buildHerbRunStatus();
 		final boolean showLocationIcons = config.showLocationIcons();
 		final MixologyStatus mixology = config.mixologyEnabled() ? buildMixologyStatus() : null;
-		// Bottomless compost bucket remaining uses — only surfaced when the bucket is in the inventory.
-		final boolean bucketPresent = containerContains(InventoryID.INVENTORY, BOTTOMLESS_BUCKET_IDS);
-		final int bucketUses = bucketPresent ? client.getVarbitValue(VARBIT_BUCKET_QUANTITY) : -1;
+		// Bottomless compost bucket remaining uses — only surfaced when the bucket is in the inventory,
+		// and only trusted from the varbit when the filled variant is the one actually carried (see
+		// the field comment above); an empty bucket is always 0, regardless of what the shared varbit
+		// currently holds.
+		final boolean bucketFilled = containerContains(InventoryID.INVENTORY,
+			new int[]{FILLED_BOTTOMLESS_BUCKET_ID});
+		final boolean bucketEmpty = !bucketFilled
+			&& containerContains(InventoryID.INVENTORY, new int[]{EMPTY_BOTTOMLESS_BUCKET_ID});
+		final int bucketUses = bucketFilled ? client.getVarbitValue(VARBIT_BUCKET_QUANTITY)
+			: bucketEmpty ? 0 : -1;
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.setXpMode(xpMode);
