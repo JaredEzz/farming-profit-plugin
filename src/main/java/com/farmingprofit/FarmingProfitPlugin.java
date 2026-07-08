@@ -1107,8 +1107,13 @@ public class FarmingProfitPlugin extends Plugin
 			{
 				Crop crop = it.next();
 				// Herbs are counted from Farming XP (they may go into a herb sack instead of the
-				// inventory), so only the inventory diff handles non-herb crops here.
-				if (crop.getPatchType() != PatchType.HERBS)
+				// inventory), and crops with their own per-pick chat message (berries, seaweed,
+				// cactus - see HarvestMessages) are already counted as each message arrives in
+				// onChatMessage. Counting either of those again here from the inventory diff would
+				// double-count: the chat-message handler updates prevCropInv from a fresh inventory
+				// read that may lag a tick behind the actual game state, so the next diff check sees
+				// that same pick as "new" a second time.
+				if (crop.getPatchType() != PatchType.HERBS && !HarvestMessages.hasHarvestMessage(crop))
 				{
 					int amount = newCrops.size();
 					handleHarvest(crop, amount);
