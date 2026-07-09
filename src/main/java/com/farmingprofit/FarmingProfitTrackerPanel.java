@@ -253,6 +253,10 @@ class FarmingProfitTrackerPanel extends JPanel
 		final int regionId = run.getRegionId();
 		RunGroup current = groups.isEmpty() ? null : groups.get(0);
 		final boolean startNew = forceNewRun || current == null || current.regionIds.contains(regionId);
+		log.debug("addRun: region={} crop={} amount={} forceNewRun={} currentRun={} regionAlreadyInCurrent={} -> startNew={}",
+			regionId, run.getCrop(), run.getAmount(), forceNewRun,
+			current == null ? "none" : current.number,
+			current != null && current.regionIds.contains(regionId), startNew);
 		if (startNew)
 		{
 			current = new RunGroup(nextRunNumber++);
