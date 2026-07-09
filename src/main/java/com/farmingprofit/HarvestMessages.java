@@ -25,8 +25,10 @@
 package com.farmingprofit;
 
 import java.util.Collections;
+import java.util.EnumSet;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.Set;
 import lombok.Getter;
 
 /**
@@ -54,6 +56,7 @@ public enum HarvestMessages
 	private final String harvestMessage;
 
 	private static final Map<String, Crop> map = Collections.unmodifiableMap(initializeMapping());
+	private static final Set<Crop> cropsWithMessage = Collections.unmodifiableSet(initializeCropSet());
 
 	public static Crop cropFromMessage(String harvestMessage)
 	{
@@ -64,6 +67,18 @@ public enum HarvestMessages
 		return Crop.UNKNOWN;
 	}
 
+	/**
+	 * Whether this crop is picked up per-harvest via an individual chat message (e.g. "You pick
+	 * some dwellberries."). These crops are fully counted by {@code onChatMessage} as each message
+	 * arrives, so the inventory-diff harvest check must skip them - otherwise the final pick of the
+	 * patch gets counted twice: once from the chat message, and again from the inventory diff once
+	 * the inventory catches up a tick later.
+	 */
+	public static boolean hasHarvestMessage(Crop crop)
+	{
+		return cropsWithMessage.contains(crop);
+	}
+
 	private static Map<String, Crop> initializeMapping()
 	{
 		Map<String, Crop> _map = new HashMap<>();
@@ -72,6 +87,16 @@ public enum HarvestMessages
 			_map.put(s.harvestMessage, s.crop);
 		}
 		return _map;
+	}
+
+	private static Set<Crop> initializeCropSet()
+	{
+		Set<Crop> _set = EnumSet.noneOf(Crop.class);
+		for (HarvestMessages s : HarvestMessages.values())
+		{
+			_set.add(s.crop);
+		}
+		return _set;
 	}
 
 }

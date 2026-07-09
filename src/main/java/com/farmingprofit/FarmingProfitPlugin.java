@@ -137,8 +137,14 @@ public class FarmingProfitPlugin extends Plugin
 		ItemID.FARMING_CAPE, ItemID.FARMING_CAPET, ItemID.MAX_CAPE, ItemID.MAX_CAPE_13342};
 
 	// Bottomless compost bucket: item 22994 (empty) / 22997 (filled); the remaining uses are stored in
-	// varbit 7916 (FARMING_TOOLS_BOTTOMLESS_BUCKET_QUANTITY), valid whenever logged in.
-	private static final int[] BOTTOMLESS_BUCKET_IDS = {22994, 22997};
+	// varbit 7916 (FARMING_TOOLS_BOTTOMLESS_BUCKET_QUANTITY). That varbit is a single global slot
+	// shared by every bottomless bucket the account owns (like the "current bucket" the game last
+	// touched), not one scoped to the specific bucket sitting in your inventory right now - so it
+	// only reflects reality once you've Filled/Checked/used the bucket you're currently carrying.
+	// Gate on the filled item variant specifically: an empty bucket is unambiguously 0 uses, and
+	// trusting the varbit there risks showing a stale count left over from a different bucket.
+	private static final int EMPTY_BOTTOMLESS_BUCKET_ID = 22994;
+	private static final int FILLED_BOTTOMLESS_BUCKET_ID = 22997;
 	private static final int VARBIT_BUCKET_QUANTITY = 7916;
 
 	// Flags
@@ -281,9 +287,16 @@ public class FarmingProfitPlugin extends Plugin
 		final List<HerbPatchStatus> herbStatuses = buildHerbRunStatus();
 		final boolean showLocationIcons = config.showLocationIcons();
 		final MixologyStatus mixology = config.mixologyEnabled() ? buildMixologyStatus() : null;
-		// Bottomless compost bucket remaining uses — only surfaced when the bucket is in the inventory.
-		final boolean bucketPresent = containerContains(InventoryID.INVENTORY, BOTTOMLESS_BUCKET_IDS);
-		final int bucketUses = bucketPresent ? client.getVarbitValue(VARBIT_BUCKET_QUANTITY) : -1;
+		// Bottomless compost bucket remaining uses — only surfaced when the bucket is in the inventory,
+		// and only trusted from the varbit when the filled variant is the one actually carried (see
+		// the field comment above); an empty bucket is always 0, regardless of what the shared varbit
+		// currently holds.
+		final boolean bucketFilled = containerContains(InventoryID.INVENTORY,
+			new int[]{FILLED_BOTTOMLESS_BUCKET_ID});
+		final boolean bucketEmpty = !bucketFilled
+			&& containerContains(InventoryID.INVENTORY, new int[]{EMPTY_BOTTOMLESS_BUCKET_ID});
+		final int bucketUses = bucketFilled ? client.getVarbitValue(VARBIT_BUCKET_QUANTITY)
+			: bucketEmpty ? 0 : -1;
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.setXpMode(xpMode);
@@ -675,6 +688,13 @@ public class FarmingProfitPlugin extends Plugin
 			loadRuns();
 			refreshDisplay();
 		}
+		else if (event.getGameState() == GameState.LOGIN_SCREEN || event.getGameState() == GameState.HOPPING)
+		{
+			// Drop any observed herb-patch state on logout/world-hop so a DEAD patch seen on one
+			// character can't leak into another character's (or the same account's next) session
+			// and fire a phantom 0-herb "dead patch cleared" run entry.
+			lastHerbPatchState.clear();
+		}
 	}
 
 	@Subscribe
@@ -824,6 +844,23 @@ public class FarmingProfitPlugin extends Plugin
 		// world hop / region load while a run is still pending), so guard before dereferencing.
 		final WorldPoint playerLoc = client.getLocalPlayer() != null
 			? client.getLocalPlayer().getWorldLocation() : null;
+
+		// Seed lastHerbPatchState for the region the player is standing in, without clobbering a
+		// value onVarbitChanged already recorded. Without this, a patch that's already DEAD the
+		// first time this session observes its region (e.g. logging in right at it) has no prior
+		// state to compare against when it's cleared, so handleDeadPatchCleared never fires and
+		// that 0-herb patch silently drops out of the run history. onGameTick runs every tick, so
+		// this always seeds DEAD before the player can finish digging it up.
+		if (playerLoc != null)
+		{
+			final HerbPatches.HerbPatch here = HerbPatches.forRegion(playerLoc.getRegionID());
+			if (here != null)
+			{
+				lastHerbPatchState.putIfAbsent(here.regionId,
+					HerbPatches.decodeState(client.getVarbitValue(here.varbit)));
+			}
+		}
+
 		if (latestRun != null && playerLoc != null)
 		{
 			int dist = playerLoc.distanceTo2D(latestRun.getLatestHarvestWorldPoint());
@@ -1107,8 +1144,13 @@ public class FarmingProfitPlugin extends Plugin
 			{
 				Crop crop = it.next();
 				// Herbs are counted from Farming XP (they may go into a herb sack instead of the
-				// inventory), so only the inventory diff handles non-herb crops here.
-				if (crop.getPatchType() != PatchType.HERBS)
+				// inventory), and crops with their own per-pick chat message (berries, seaweed,
+				// cactus - see HarvestMessages) are already counted as each message arrives in
+				// onChatMessage. Counting either of those again here from the inventory diff would
+				// double-count: the chat-message handler updates prevCropInv from a fresh inventory
+				// read that may lag a tick behind the actual game state, so the next diff check sees
+				// that same pick as "new" a second time.
+				if (crop.getPatchType() != PatchType.HERBS && !HarvestMessages.hasHarvestMessage(crop))
 				{
 					int amount = newCrops.size();
 					handleHarvest(crop, amount);
