@@ -103,6 +103,8 @@ public class FarmingProfitPlugin extends Plugin
 	private Gson gson;
 	@Inject
 	private NtfyNotifier ntfyNotifier;
+	@Inject
+	private DebugLog debugLog;
 
 	@Provides
 	FarmingProfitConfig getConfig(ConfigManager configManager)
@@ -202,7 +204,9 @@ public class FarmingProfitPlugin extends Plugin
 		panel = new FarmingProfitPanel(itemManager, config.displayMode() == DisplayMode.XP);
 		panel.setPlannerRefreshAction(() -> clientThread.invoke(this::refreshDisplay));
 		panel.setRunHistoryChanged(this::saveRuns);
+		panel.setDebugLogSupplier(debugLog::snapshot);
 		spriteManager.getSpriteAsync(SpriteID.SKILL_FARMING, 0, panel::loadHeaderIcon);
+		debugLog.setEnabled(config.debugLoggingEnabled());
 
 		final BufferedImage icon = new SkillIconManager().getSkillImage(Skill.FARMING, false);
 
@@ -223,6 +227,7 @@ public class FarmingProfitPlugin extends Plugin
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		debugLog.setEnabled(false);
 		// RuneLite reuses this plugin instance across a disable->enable cycle, so reset load state and
 		// the transient mid-harvest flags. Without resetting runsLoaded, the next startUp()'s fresh
 		// (empty) panel would never re-import the on-disk run history (loadRuns early-returns).
@@ -805,6 +810,10 @@ public class FarmingProfitPlugin extends Plugin
 		// Config changes are posted on the EDT, so hop to the client thread before reading state.
 		// "timetracking" fires when RuneLite writes a patch snapshot (i.e. you visit a patch), which
 		// is exactly when the herb-run helper's off-region patch states change.
+		if (event.getGroup().equals("farmingProfit"))
+		{
+			debugLog.setEnabled(config.debugLoggingEnabled());
+		}
 		if (event.getGroup().equals("farmingProfit") || event.getGroup().equals(TIMETRACKING)
 			|| event.getGroup().equals(EASY_MIXOLOGY) || event.getGroup().equals(MASTERING_MIXOLOGY))
 		{

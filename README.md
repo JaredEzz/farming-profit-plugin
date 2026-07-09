@@ -55,6 +55,15 @@ ntfy-compatible URL works, the plugin doesn't require its own server.
 * **Notify per patch** switches from one push for the whole run to one per individual patch as
   it finishes.
 
+### Debug log
+
+If something looks wrong (a patch not tracking correctly, a stat that seems off), turn on
+**Farming Profit config → Debug → Enable debug logging**, reproduce the issue, then right-click
+the Tracker tab's totals box and choose **Copy debug log** to copy the plugin's recent internal
+log (patch state changes, harvest events, any errors) to your clipboard — handy for pasting into
+a bug report when you don't have a Java console handy (e.g. on Steam Deck). Nothing is sent
+anywhere; it only fills an in-memory buffer you copy yourself. Off by default.
+
 ## Attribution
 
 This plugin is the externalised version of the original

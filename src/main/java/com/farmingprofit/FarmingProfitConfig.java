@@ -76,6 +76,14 @@ public interface FarmingProfitConfig extends Config
 	)
 	String notificationsSection = "notifications";
 
+	@ConfigSection(
+		name = "Debug",
+		description = "Diagnostics for bug reports",
+		position = 5,
+		closedByDefault = true
+	)
+	String debugSection = "debug";
+
 	@ConfigItem(
 		keyName = "displayMode",
 		name = "Value patches by",
@@ -371,6 +379,21 @@ public interface FarmingProfitConfig extends Config
 		section = notificationsSection
 	)
 	default boolean ntfyPerPatch()
+	{
+		return false;
+	}
+
+	@ConfigItem(
+		keyName = "debugLoggingEnabled",
+		name = "Enable debug logging",
+		description = "Capture this plugin's internal diagnostic log (patch state changes, harvest "
+			+ "events, errors) in memory so you can copy it from the Tracker tab's right-click menu -> "
+			+ "Copy debug log. Nothing is sent anywhere; it only fills an in-memory buffer for you to "
+			+ "paste into a bug report. Off by default.",
+		position = 0,
+		section = debugSection
+	)
+	default boolean debugLoggingEnabled()
 	{
 		return false;
 	}

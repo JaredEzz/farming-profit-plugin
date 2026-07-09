@@ -29,6 +29,8 @@ import java.awt.Color;
 import java.awt.Component;
 import java.awt.Dimension;
 import java.awt.GridLayout;
+import java.awt.Toolkit;
+import java.awt.datatransfer.StringSelection;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
 import java.awt.image.BufferedImage;
@@ -42,6 +44,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.function.Supplier;
 import javax.swing.BoxLayout;
 import javax.swing.ImageIcon;
 import javax.swing.JButton;
@@ -108,6 +111,8 @@ class FarmingProfitTrackerPanel extends JPanel
 	private FarmingProfitRun currentHarvest;
 	/** Fired when committed runs change, so the plugin can persist them. */
 	private Runnable onChanged = () -> { };
+	/** Backed by {@link DebugLog#snapshot()}; supplies the current in-memory debug log for copying. */
+	private Supplier<String> debugLogSupplier = () -> "";
 
 	private boolean xpMode;
 	private boolean showGraph = true;
@@ -156,9 +161,12 @@ class FarmingProfitTrackerPanel extends JPanel
 			rebuild();
 			onChanged.run();
 		});
+		final JMenuItem copyDebugLog = new JMenuItem("Copy debug log");
+		copyDebugLog.addActionListener(e -> copyDebugLogToClipboard());
 		final JPopupMenu popupMenu = new JPopupMenu();
 		popupMenu.setBorder(new EmptyBorder(5, 5, 5, 5));
 		popupMenu.add(reset);
+		popupMenu.add(copyDebugLog);
 		overallPanel.setComponentPopupMenu(popupMenu);
 
 		// "New run" button forces the next patch into a fresh run.
@@ -286,6 +294,31 @@ class FarmingProfitTrackerPanel extends JPanel
 	void setOnChanged(Runnable onChanged)
 	{
 		this.onChanged = onChanged != null ? onChanged : () -> { };
+	}
+
+	/** Supplies the current in-memory debug log for the "Copy debug log" menu item. */
+	void setDebugLogSupplier(Supplier<String> supplier)
+	{
+		this.debugLogSupplier = supplier != null ? supplier : () -> "";
+	}
+
+	/** Copy the in-memory debug log to the system clipboard, or explain how to turn it on if empty. */
+	private void copyDebugLogToClipboard()
+	{
+		final String log = debugLogSupplier.get();
+		if (log == null || log.isEmpty())
+		{
+			JOptionPane.showMessageDialog(this,
+				"Debug log is empty. Enable 'Debug' -> 'Enable debug logging' in the plugin config, "
+					+ "reproduce the issue, then come back and copy it.",
+				"Copy debug log", JOptionPane.INFORMATION_MESSAGE);
+			return;
+		}
+		Toolkit.getDefaultToolkit().getSystemClipboard().setContents(new StringSelection(log), null);
+		final int lines = log.split("\n", -1).length;
+		JOptionPane.showMessageDialog(this,
+			"Copied " + lines + " debug log line" + (lines == 1 ? "" : "s") + " to the clipboard.",
+			"Copy debug log", JOptionPane.INFORMATION_MESSAGE);
 	}
 
 	/** Flatten the committed runs to records for saving (newest run first, patches in harvest order). */
