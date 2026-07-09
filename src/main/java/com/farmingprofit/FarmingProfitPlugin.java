@@ -293,10 +293,14 @@ public class FarmingProfitPlugin extends Plugin
 		// currently holds.
 		final boolean bucketFilled = containerContains(InventoryID.INVENTORY,
 			new int[]{FILLED_BOTTOMLESS_BUCKET_ID});
-		final boolean bucketEmpty = !bucketFilled
-			&& containerContains(InventoryID.INVENTORY, new int[]{EMPTY_BOTTOMLESS_BUCKET_ID});
-		final int bucketUses = bucketFilled ? client.getVarbitValue(VARBIT_BUCKET_QUANTITY)
-			: bucketEmpty ? 0 : -1;
+		final boolean bucketEmpty = containerContains(InventoryID.INVENTORY,
+			new int[]{EMPTY_BOTTOMLESS_BUCKET_ID});
+		final int rawVarbit = client.getVarbitValue(VARBIT_BUCKET_QUANTITY);
+		// The bottomless compost bucket keeps item id 22994 whether empty or full; the remaining-uses
+		// amount lives only in varbit 7916. Read the varbit whenever a bucket is present.
+		final int bucketUses = (bucketFilled || bucketEmpty) ? rawVarbit : -1;
+		log.info("[dbg] bucket: empty22994={} filled22997={} varbit7916={} -> uses={}",
+			bucketEmpty, bucketFilled, rawVarbit, bucketUses);
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.setXpMode(xpMode);
@@ -718,7 +722,7 @@ public class FarmingProfitPlugin extends Plugin
 				final int amount = (int) Math.round(delta / perHerb);
 				if (amount > 0)
 				{
-					log.debug("Herb XP harvest: +{} xp -> {}x {}", delta, amount, activeHarvestCrop.getDisplayName());
+					log.info("[dbg] Herb XP: newXp={} last={} delta={} perHerb={} round-> {}x {}", newXp, lastFarmingXp, delta, perHerb, amount, activeHarvestCrop.getDisplayName());
 					handleHarvest(activeHarvestCrop, amount);
 					pushCurrentHarvest();
 				}
