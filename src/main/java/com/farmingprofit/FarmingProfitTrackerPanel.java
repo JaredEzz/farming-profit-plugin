@@ -88,7 +88,10 @@ class FarmingProfitTrackerPanel extends JPanel
 		}
 	}
 
-	private final JPanel runsContainer = new JPanel();
+	/** Holds just the newest run (or the live harvest row when no run has started yet). */
+	private final JPanel currentRunContainer = new JPanel();
+	/** Holds every run except the newest, below the patch-status card. */
+	private final JPanel pastRunsContainer = new JPanel();
 	private final HerbRunHelperPanel herbRunPanel;
 	private final JLabel overallIcon = new JLabel();
 	private final JLabel overallValueLabel = new JLabel();
@@ -191,13 +194,15 @@ class FarmingProfitTrackerPanel extends JPanel
 		collapseRow.add(hideAll);
 		collapseRow.add(showAll);
 
-		runsContainer.setLayout(new BoxLayout(runsContainer, BoxLayout.Y_AXIS));
+		currentRunContainer.setLayout(new BoxLayout(currentRunContainer, BoxLayout.Y_AXIS));
+		pastRunsContainer.setLayout(new BoxLayout(pastRunsContainer, BoxLayout.Y_AXIS));
 
 		layoutPanel.add(overallPanel);
 		layoutPanel.add(newRunRow);
 		layoutPanel.add(collapseRow);
-		layoutPanel.add(runsContainer);
+		layoutPanel.add(currentRunContainer);
 		layoutPanel.add(herbRunPanel);
+		layoutPanel.add(pastRunsContainer);
 
 		rebuild();
 	}
@@ -367,13 +372,14 @@ class FarmingProfitTrackerPanel extends JPanel
 
 	private void rebuild()
 	{
-		runsContainer.removeAll();
+		currentRunContainer.removeAll();
+		pastRunsContainer.removeAll();
 
 		// The live "currently harvesting" row lives below the current run's chart (see buildRunPanel).
 		// Only when there's no run yet (first patch of the session) does it stand alone at the top.
 		if (currentHarvest != null && groups.isEmpty())
 		{
-			runsContainer.add(buildCurrentHarvestRow(currentHarvest));
+			currentRunContainer.add(buildCurrentHarvestRow(currentHarvest));
 		}
 
 		long overallProfit = 0;
@@ -384,7 +390,8 @@ class FarmingProfitTrackerPanel extends JPanel
 		for (int i = 0; i < groups.size(); i++)
 		{
 			final RunGroup group = groups.get(i);
-			runsContainer.add(buildRunPanel(group, i == 0));
+			final boolean isNewest = i == 0;
+			(isNewest ? currentRunContainer : pastRunsContainer).add(buildRunPanel(group, isNewest));
 			for (FarmingProfitRun run : group.patches)
 			{
 				overallProfit += run.getProfit();
@@ -405,8 +412,10 @@ class FarmingProfitTrackerPanel extends JPanel
 		overallPatchesLabel.setText(htmlLabel("Total patches: ", overallPatches));
 		overallProductsLabel.setText(htmlLabel("Total products: ", overallProducts));
 
-		runsContainer.revalidate();
-		runsContainer.repaint();
+		currentRunContainer.revalidate();
+		currentRunContainer.repaint();
+		pastRunsContainer.revalidate();
+		pastRunsContainer.repaint();
 	}
 
 	/**
