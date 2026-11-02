@@ -120,11 +120,6 @@ class FarmingProfitPanel extends PluginPanel
 		trackerPanel.setOnChanged(onChanged);
 	}
 
-	void setDebugLogSupplier(java.util.function.Supplier<String> supplier)
-	{
-		trackerPanel.setDebugLogSupplier(supplier);
-	}
-
 	java.util.List<RunRecord> exportRecords()
 	{
 		return trackerPanel.exportRecords();
