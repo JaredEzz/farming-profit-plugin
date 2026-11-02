@@ -511,8 +511,8 @@ public class FarmingProfitPlugin extends Plugin
 			final double yieldPerPatch = HerbYield.expectedYieldPerPatch(
 				crop, in.getFarmingLevel(), lives, itemBonus, in.isAttas());
 
-			final int seedPrice = itemManager.getItemPrice(crop.getSeedId());
-			final int herbPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
+			final long seedPrice = itemManager.getItemPrice(crop.getSeedId());
+			final long herbPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
 
 			final double profitPerRun = (yieldPerPatch * herbPrice - (double) seedPrice * crop.getSeedAmount())
 				* in.getPatches();

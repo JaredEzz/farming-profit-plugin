@@ -32,12 +32,12 @@ final class RunRecord
 	String crop;
 	int amount;
 	double expectedYield;
-	int profit;
+	long profit;
 	double xp;
 	long timeMillis;
 
 	RunRecord(int runNumber, int regionId, String crop, int amount, double expectedYield,
-		int profit, double xp, long timeMillis)
+		long profit, double xp, long timeMillis)
 	{
 		this.runNumber = runNumber;
 		this.regionId = regionId;

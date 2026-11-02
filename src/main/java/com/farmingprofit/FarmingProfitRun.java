@@ -50,7 +50,7 @@ class FarmingProfitRun
 
 	// Util variables
 	@Getter
-	private int profit;
+	private long profit;
 	/** Farming XP gained from harvesting this patch (per-herb harvest XP times the amount). */
 	@Getter
 	private double xp;
@@ -77,7 +77,7 @@ class FarmingProfitRun
 	}
 
 	/** Rebuild a finished run from persisted values (no price recompute / itemManager needed). */
-	FarmingProfitRun(Crop crop, int amount, int regionId, int profit, double xp,
+	FarmingProfitRun(Crop crop, int amount, int regionId, long profit, double xp,
 		double expectedYield, LocalDateTime time)
 	{
 		this.crop = crop;
@@ -122,8 +122,8 @@ class FarmingProfitRun
 	 */
 	private void updateProfit()
 	{
-		int seedPrice = itemManager.getItemPrice(crop.getSeedId());
-		int productPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
+		long seedPrice = itemManager.getItemPrice(crop.getSeedId());
+		long productPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
 
 		profit = productPrice * amount - seedPrice * crop.getSeedAmount();
 		xp = amount * crop.getHarvestXp();
@@ -139,9 +139,9 @@ class FarmingProfitRun
 	private void updateTooltip()
 	{
 		ItemComposition seed = itemManager.getItemComposition(crop.getSeedId());
-		int seedPrice = itemManager.getItemPrice(crop.getSeedId());
+		long seedPrice = itemManager.getItemPrice(crop.getSeedId());
 		ItemComposition product = itemManager.getItemComposition(crop.getHarvestedItemId());
-		int productPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
+		long productPrice = itemManager.getItemPrice(crop.getHarvestedItemId());
 		tooltip = "<html>Cost: " + crop.getSeedAmount() + "x " + seed.getName() + " " +
 			QuantityFormatter.quantityToStackSize(seedPrice * crop.getSeedAmount()) + "gp<br>" +
 			"Products: " + amount + "x " + product.getName() + " " +
