@@ -121,4 +121,41 @@ public class HerbYieldTest
 		assertEquals(Crop.RANARR, Crop.fromProductId(Crop.RANARR.getHarvestedItemId()));
 		assertEquals(Crop.RANARR, Crop.fromProductId(Crop.RANARR.getProductId()));
 	}
+
+	@Test
+	public void singlePickXpGainCountsAsOneHerb()
+	{
+		assertEquals(1, HerbYield.herbsFromXpGain(30, 30.5));
+		assertEquals(1, HerbYield.herbsFromXpGain(31, 30.5));
+		// Falador pays bonus XP per pick
+		assertEquals(1, HerbYield.herbsFromXpGain(34, 30.5));
+	}
+
+	@Test
+	public void finalPickXpGainCountsAsOneHerb()
+	{
+		// The last pick of a patch pays extra XP in the same update. Values from real Ranarr harvests.
+		assertEquals(1, HerbYield.herbsFromXpGain(57, 30.5));
+		assertEquals(1, HerbYield.herbsFromXpGain(60, 30.5));
+	}
+
+	@Test
+	public void realPatchDeltasCountOneHerbPerPick()
+	{
+		final int[] deltas = {31, 30, 31, 30, 31, 30, 31, 57};
+		int herbs = 0;
+		for (int delta : deltas)
+		{
+			herbs += HerbYield.herbsFromXpGain(delta, 30.5);
+		}
+		assertEquals(8, herbs);
+	}
+
+	@Test
+	public void smallUnrelatedXpGainCountsAsNoHerb()
+	{
+		assertEquals(0, HerbYield.herbsFromXpGain(10, 30.5));
+		assertEquals(0, HerbYield.herbsFromXpGain(0, 30.5));
+		assertEquals(0, HerbYield.herbsFromXpGain(30, 0));
+	}
 }

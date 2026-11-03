@@ -705,23 +705,19 @@ public class FarmingProfitPlugin extends Plugin
 			return;
 		}
 
-		// Count herb harvests from Farming XP: while a harvest is in progress, convert the XP gained
-		// into a herb count using the active herb's per-harvest XP. This works whether the herb lands
-		// in the inventory or a herb sack. Non-herb crops are still counted by the inventory diff.
+		// Count herb harvests from Farming XP: while a harvest is in progress, each XP gain is one
+		// pick. This works whether the herb lands in the inventory or a herb sack. Non-herb crops are
+		// still counted by the inventory diff.
 		final int newXp = event.getXp();
 		if (startedHarvesting && lastFarmingXp >= 0 && activeHarvestCrop != Crop.UNKNOWN)
 		{
 			final int delta = newXp - lastFarmingXp;
-			final double perHerb = activeHarvestCrop.getHarvestXp();
-			if (delta > 0 && perHerb > 0)
+			final int amount = HerbYield.herbsFromXpGain(delta, activeHarvestCrop.getHarvestXp());
+			if (amount > 0)
 			{
-				final int amount = (int) Math.round(delta / perHerb);
-				if (amount > 0)
-				{
-					log.debug("Herb XP harvest: +{} xp -> {}x {}", delta, amount, activeHarvestCrop.getDisplayName());
-					handleHarvest(activeHarvestCrop, amount);
-					pushCurrentHarvest();
-				}
+				log.debug("Herb XP harvest: +{} xp -> {}x {}", delta, amount, activeHarvestCrop.getDisplayName());
+				handleHarvest(activeHarvestCrop, amount);
+				pushCurrentHarvest();
 			}
 		}
 		lastFarmingXp = newXp;

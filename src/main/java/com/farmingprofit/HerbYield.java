@@ -103,4 +103,18 @@ final class HerbYield
 		}
 		return lives / (1.0 - p);
 	}
+
+	/**
+	 * Herbs picked for one Farming XP gain during a herb harvest. Each pick is its own XP update, so
+	 * this is at most one, however large the gain: the last pick of a patch pays extra XP in the same
+	 * update, which must not read as a second herb. Gains under half a pick aren't from picking.
+	 *
+	 * @param xpGain    Farming XP gained in this update
+	 * @param harvestXp the herb's XP per pick
+	 * @return 1 if this gain is a pick, otherwise 0
+	 */
+	static int herbsFromXpGain(int xpGain, double harvestXp)
+	{
+		return harvestXp > 0 && xpGain >= harvestXp / 2 ? 1 : 0;
+	}
 }
