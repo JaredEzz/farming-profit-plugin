@@ -195,6 +195,11 @@ class FarmingProfitTrackerPanel extends JPanel
 		rebuild();
 	}
 
+	void stopTimers()
+	{
+		herbRunPanel.stopTicker();
+	}
+
 	void updateHerbRun(List<HerbPatchStatus> statuses, boolean showLocationIcons)
 	{
 		herbRunPanel.setStatuses(statuses, showLocationIcons);
@@ -738,7 +743,7 @@ class FarmingProfitTrackerPanel extends JPanel
 			bar.setValue(amount);
 			bar.setForeground(actualColor);
 			bar.setBackground(ColorScheme.DARK_GRAY_COLOR);
-			bar.setBorderPainted(false);
+			bar.setBorder(null);
 			bar.setPreferredSize(new Dimension(0, 6));
 			box.add(bar, BorderLayout.SOUTH);
 		}

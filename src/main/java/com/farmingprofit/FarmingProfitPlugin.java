@@ -223,14 +223,24 @@ public class FarmingProfitPlugin extends Plugin
 
 		clientToolbar.addNavigation(navButton);
 
-		// Populate the planner with whatever state is already available.
-		clientThread.invoke(this::refreshDisplay);
+		// Populate the planner with whatever state is already available. Item lookups throw until the
+		// client has loaded its cache, so wait for the login screen if this runs at client startup.
+		clientThread.invoke(() ->
+		{
+			if (client.getGameState().getState() < GameState.LOGIN_SCREEN.getState())
+			{
+				return false;
+			}
+			refreshDisplay();
+			return true;
+		});
 	}
 
 	@Override
 	protected void shutDown()
 	{
 		clientToolbar.removeNavigation(navButton);
+		panel.stopTimers();
 		// RuneLite reuses this plugin instance across a disable->enable cycle, so reset load state and
 		// the transient mid-harvest flags. Without resetting runsLoaded, the next startUp()'s fresh
 		// (empty) panel would never re-import the on-disk run history (loadRuns early-returns).
@@ -276,6 +286,11 @@ public class FarmingProfitPlugin extends Plugin
 			default:
 				// isIronman() excludes group ironman, so check both — a GIM can't use the GE
 				// either, so XP is the meaningful metric for them too.
+				// RuneLite Android has no varbits to read before login, and getAccountType() throws.
+				if (client.getGameState() != GameState.LOGGED_IN)
+				{
+					return false;
+				}
 				final AccountType type = client.getAccountType();
 				return type != null && (type.isIronman() || type.isGroupIronman());
 		}

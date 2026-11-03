@@ -96,6 +96,8 @@ class HerbRunHelperPanel extends JPanel
 		add(rowsContainer);
 		add(compostLabel);
 
+		// Started here, not in addNotify(): RuneLite Android's Swing has no addNotify().
+		ticker.start();
 		refreshCountdown();
 	}
 
@@ -239,18 +241,8 @@ class HerbRunHelperPanel extends JPanel
 		return String.format(TWO_TONE, ColorUtil.toHexColor(keyColor), key, value);
 	}
 
-	@Override
-	public void addNotify()
-	{
-		super.addNotify();
-		ticker.start();
-		refreshCountdown();
-	}
-
-	@Override
-	public void removeNotify()
+	void stopTicker()
 	{
 		ticker.stop();
-		super.removeNotify();
 	}
 }
