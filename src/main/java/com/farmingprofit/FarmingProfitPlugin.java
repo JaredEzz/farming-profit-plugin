@@ -63,6 +63,8 @@ import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
 import net.runelite.api.events.StatChanged;
 import net.runelite.api.events.VarbitChanged;
+import net.runelite.api.gameval.InterfaceID;
+import net.runelite.api.widgets.Widget;
 import net.runelite.api.vars.AccountType;
 import net.runelite.client.callback.ClientThread;
 import net.runelite.client.config.ConfigManager;
@@ -136,16 +138,22 @@ public class FarmingProfitPlugin extends Plugin
 	private static final int[] FARMING_CAPE_IDS = {
 		ItemID.FARMING_CAPE, ItemID.FARMING_CAPET, ItemID.MAX_CAPE, ItemID.MAX_CAPE_13342};
 
-	// Bottomless compost bucket: item 22994 (empty) / 22997 (filled); the remaining uses are stored in
-	// varbit 7916 (FARMING_TOOLS_BOTTOMLESS_BUCKET_QUANTITY). That varbit is a single global slot
-	// shared by every bottomless bucket the account owns (like the "current bucket" the game last
-	// touched), not one scoped to the specific bucket sitting in your inventory right now - so it
-	// only reflects reality once you've Filled/Checked/used the bucket you're currently carrying.
-	// Gate on the filled item variant specifically: an empty bucket is unambiguously 0 uses, and
-	// trusting the varbit there risks showing a stale count left over from a different bucket.
+	// Bottomless compost bucket: item 22994 (empty) / 22997 (filled). Varbit 7916 holds the uses only
+	// while the bucket is stored at a Tool Leprechaun and reads 0 while it's carried, so the carried
+	// count comes from game text (see CompostBucketMessages) and is saved per account.
 	private static final int EMPTY_BOTTOMLESS_BUCKET_ID = 22994;
 	private static final int FILLED_BOTTOMLESS_BUCKET_ID = 22997;
+	private static final int VARBIT_BUCKET_TYPE = 7915;
 	private static final int VARBIT_BUCKET_QUANTITY = 7916;
+	private static final String COMPOST_BUCKET_USES_KEY = "compostBucketUses";
+	private static final String HIGH_SCORE_KEY = "herbHighScore";
+	/** Uses left in the bottomless compost bucket; -1 until the game has told us. */
+	private int compostBucketUses = -1;
+	/** Text of the open item dialog last read, so a dialog left open isn't read again after a use. */
+	private String lastCompostDialogText;
+	/** Whether the last item used on a patch was the filled bucket; null if nothing was used yet. */
+	private Boolean lastItemOnPatchWasBucket;
+	private HerbHighScore highScore;
 
 	// Flags
 	private boolean START_HARVEST_NEXT_GAMETICK = false;
@@ -241,6 +249,10 @@ public class FarmingProfitPlugin extends Plugin
 		pendingRunReadyAt = 0L;
 		notifiedReadyPatches.clear();
 		lastHerbPatchState.clear();
+		compostBucketUses = -1;
+		lastCompostDialogText = null;
+		lastItemOnPatchWasBucket = null;
+		highScore = null;
 	}
 
 	// ====================== //
@@ -287,16 +299,7 @@ public class FarmingProfitPlugin extends Plugin
 		final List<HerbPatchStatus> herbStatuses = buildHerbRunStatus();
 		final boolean showLocationIcons = config.showLocationIcons();
 		final MixologyStatus mixology = config.mixologyEnabled() ? buildMixologyStatus() : null;
-		// Bottomless compost bucket remaining uses — only surfaced when the bucket is in the inventory,
-		// and only trusted from the varbit when the filled variant is the one actually carried (see
-		// the field comment above); an empty bucket is always 0, regardless of what the shared varbit
-		// currently holds.
-		final boolean bucketFilled = containerContains(InventoryID.INVENTORY,
-			new int[]{FILLED_BOTTOMLESS_BUCKET_ID});
-		final boolean bucketEmpty = !bucketFilled
-			&& containerContains(InventoryID.INVENTORY, new int[]{EMPTY_BOTTOMLESS_BUCKET_ID});
-		final int bucketUses = bucketFilled ? client.getVarbitValue(VARBIT_BUCKET_QUANTITY)
-			: bucketEmpty ? 0 : -1;
+		final int bucketUses = compostBucketDisplay();
 		SwingUtilities.invokeLater(() ->
 		{
 			panel.setXpMode(xpMode);
@@ -686,6 +689,7 @@ public class FarmingProfitPlugin extends Plugin
 			// Seed the XP baseline so the first harvest delta isn't garbage.
 			lastFarmingXp = client.getSkillExperience(Skill.FARMING);
 			loadRuns();
+			loadCompostBucket();
 			refreshDisplay();
 		}
 		else if (event.getGameState() == GameState.LOGIN_SCREEN || event.getGameState() == GameState.HOPPING)
@@ -732,6 +736,10 @@ public class FarmingProfitPlugin extends Plugin
 		// stat/inventory event (using compost, spending resin), so refresh when their value changes.
 		final int vb = event.getVarbitId();
 		final int vp = event.getVarpId();
+		if (vb == VARBIT_BUCKET_TYPE || vb == VARBIT_BUCKET_QUANTITY)
+		{
+			readStoredCompostBucket();
+		}
 		if (vb == VARBIT_BUCKET_QUANTITY
 			|| vp == VARP_RESIN_MOX || vp == VARP_RESIN_AGA || vp == VARP_RESIN_LYE)
 		{
@@ -791,6 +799,10 @@ public class FarmingProfitPlugin extends Plugin
 		final int id = event.getContainerId();
 		if (id == InventoryID.EQUIPMENT.getId() || id == InventoryID.INVENTORY.getId())
 		{
+			if (countInInventory(EMPTY_BOTTOMLESS_BUCKET_ID) > 0 && countInInventory(FILLED_BOTTOMLESS_BUCKET_ID) == 0)
+			{
+				recordCompostBucket(0);
+			}
 			refreshDisplay();
 		}
 	}
@@ -828,6 +840,8 @@ public class FarmingProfitPlugin extends Plugin
 		// the client thread (buildHerbRunStatus reads varbits / RS-profile config) and can only fire
 		// while logged in — you won't be notified if RuneLite is closed. The POST itself is async.
 		maybeNotifyRunReady();
+
+		readCompostBucketDialog();
 
 		// Set the previous crop inventory as soon as one is available.
 		if (prevCropInv.size() == 0 && getCropInv().size() > 0)
@@ -1076,6 +1090,12 @@ public class FarmingProfitPlugin extends Plugin
 	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked menuOption)
 	{
+		if (menuOption.getMenuAction() == MenuAction.WIDGET_TARGET_ON_GAME_OBJECT)
+		{
+			final Widget selected = client.getSelectedWidget();
+			lastItemOnPatchWasBucket = selected != null && selected.getItemId() == FILLED_BOTTOMLESS_BUCKET_ID;
+		}
+
 		if (menuOption.getMenuAction() == MenuAction.GAME_OBJECT_FIRST_OPTION &&
 			client.getLocalPlayer() != null &&
 			!isHarvestAnim(client.getLocalPlayer().getAnimation()))
@@ -1094,6 +1114,8 @@ public class FarmingProfitPlugin extends Plugin
 	public void onChatMessage(ChatMessage chatMessage)
 	{
 		String msg = chatMessage.getMessage();
+
+		readCompostBucketChat(msg);
 
 		// Harvest when chat messages are sent for individual harvests
 		Crop crop = Crop.fromHarvestMessage(msg);
@@ -1120,6 +1142,102 @@ public class FarmingProfitPlugin extends Plugin
 		{
 			FINISH_HARVEST_NEXT_GAMETICK = true;
 		}
+	}
+
+	// ====================== //
+	//     COMPOST BUCKET     //
+	// ====================== //
+
+	private void loadCompostBucket()
+	{
+		final Integer saved = configManager.getRSProfileConfiguration("farmingProfit", COMPOST_BUCKET_USES_KEY, Integer.class);
+		compostBucketUses = saved != null ? saved : -1;
+		readStoredCompostBucket();
+	}
+
+	private void recordCompostBucket(int uses)
+	{
+		if (uses == compostBucketUses)
+		{
+			return;
+		}
+		log.debug("Bottomless compost bucket: {} uses", uses);
+		compostBucketUses = uses;
+		configManager.setRSProfileConfiguration("farmingProfit", COMPOST_BUCKET_USES_KEY, uses);
+		refreshDisplay();
+	}
+
+	private void readCompostBucketChat(String message)
+	{
+		final int uses = CompostBucketMessages.usesFrom(message);
+		if (uses != CompostBucketMessages.NO_COUNT)
+		{
+			recordCompostBucket(uses);
+			// At low uses the game reports the count just before "You treat...", with this use already
+			// taken off, so that message must not take it off again.
+			lastItemOnPatchWasBucket = false;
+		}
+		else if (CompostBucketMessages.isCompostApplied(message))
+		{
+			final boolean usedBucket = lastItemOnPatchWasBucket != null ? lastItemOnPatchWasBucket : carriesOnlyBucketCompost();
+			lastItemOnPatchWasBucket = null;
+			if (usedBucket && compostBucketUses > 0)
+			{
+				recordCompostBucket(compostBucketUses - 1);
+			}
+		}
+	}
+
+	/** The Check option's answer shows in an item dialog, which may not reach chat. */
+	private void readCompostBucketDialog()
+	{
+		final Widget dialog = client.getWidget(InterfaceID.Objectbox.TEXT);
+		final String text = dialog == null || dialog.isHidden() ? null : dialog.getText();
+		if (text != null && !text.equals(lastCompostDialogText))
+		{
+			final int uses = CompostBucketMessages.usesFrom(text);
+			if (uses != CompostBucketMessages.NO_COUNT)
+			{
+				recordCompostBucket(uses);
+			}
+		}
+		lastCompostDialogText = text;
+	}
+
+	/** A bucket stored at a Tool Leprechaun has its uses in the varbits; a carried one reads as nothing. */
+	private void readStoredCompostBucket()
+	{
+		final int quantity = client.getVarbitValue(VARBIT_BUCKET_QUANTITY);
+		if (client.getVarbitValue(VARBIT_BUCKET_TYPE) > 1 && quantity > 0)
+		{
+			recordCompostBucket(quantity);
+		}
+	}
+
+	/** Without a click to go on, compost came from the bucket if no loose bucket of compost was carried. */
+	private boolean carriesOnlyBucketCompost()
+	{
+		return countInInventory(FILLED_BOTTOMLESS_BUCKET_ID) > 0
+			&& countInInventory(ItemID.COMPOST) == 0
+			&& countInInventory(ItemID.SUPERCOMPOST) == 0
+			&& countInInventory(ItemID.ULTRACOMPOST) == 0;
+	}
+
+	/** What the panel should show for the bucket. Two filled buckets can't be told apart, so ask for a check. */
+	private int compostBucketDisplay()
+	{
+		final int filled = countInInventory(FILLED_BOTTOMLESS_BUCKET_ID);
+		if (filled == 0)
+		{
+			return countInInventory(EMPTY_BOTTOMLESS_BUCKET_ID) > 0 ? 0 : HerbRunHelperPanel.COMPOST_BUCKET_NONE;
+		}
+		return filled == 1 && compostBucketUses > 0 ? compostBucketUses : HerbRunHelperPanel.COMPOST_BUCKET_UNKNOWN;
+	}
+
+	private int countInInventory(int itemId)
+	{
+		final ItemContainer inventory = client.getItemContainer(InventoryID.INVENTORY);
+		return inventory == null ? 0 : inventory.count(itemId);
 	}
 
 	// ====================== //
@@ -1266,11 +1384,46 @@ public class FarmingProfitPlugin extends Plugin
 			{
 				SwingUtilities.invokeLater(() -> panel.importRecords(records));
 			}
+			loadHighScore(records);
 		}
 		catch (Exception ex)
 		{
 			log.warn("Failed to parse saved farming-profit run history", ex);
 		}
+	}
+
+	/** Load the saved high score, working it out from the run history the first time. */
+	private void loadHighScore(List<RunRecord> records)
+	{
+		final String json = configManager.getRSProfileConfiguration("farmingProfit", HIGH_SCORE_KEY);
+		HerbHighScore loaded = json == null || json.isEmpty() ? null : gson.fromJson(json, HerbHighScore.class);
+		if (loaded == null && records != null)
+		{
+			loaded = HerbHighScore.fromHistory(records);
+			if (loaded != null)
+			{
+				configManager.setRSProfileConfiguration("farmingProfit", HIGH_SCORE_KEY, gson.toJson(loaded));
+			}
+		}
+		if (loaded != null && (highScore == null || loaded.amount >= highScore.amount))
+		{
+			highScore = loaded;
+		}
+		final HerbHighScore shown = highScore;
+		SwingUtilities.invokeLater(() -> panel.setHighScore(shown));
+	}
+
+	private void updateHighScore(FarmingProfitRun run)
+	{
+		if (run.getCrop().getPatchType() != PatchType.HERBS || !HerbHighScore.beats(highScore, run.getAmount()))
+		{
+			return;
+		}
+		final HerbHighScore score = new HerbHighScore(run.getAmount(), run.getCrop().name(), run.getRegionId(),
+			System.currentTimeMillis());
+		highScore = score;
+		configManager.setRSProfileConfiguration("farmingProfit", HIGH_SCORE_KEY, gson.toJson(score));
+		SwingUtilities.invokeLater(() -> panel.setHighScore(score));
 	}
 
 	/** Push the in-progress patch to the panel so it shows live (counting up) while harvesting. */
@@ -1289,6 +1442,7 @@ public class FarmingProfitPlugin extends Plugin
 	{
 		if (run != null)
 		{
+			updateHighScore(run);
 			// Compute the expected herb yield here on the client thread (reads level/compost/gear),
 			// so the panel can compare actual vs expected without touching game state.
 			run.setExpectedYield(expectedHerbYield(run.getCrop()));

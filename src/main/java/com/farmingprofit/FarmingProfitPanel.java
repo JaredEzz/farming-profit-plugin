@@ -110,6 +110,11 @@ class FarmingProfitPanel extends PluginPanel
 		trackerPanel.setCompostBucket(uses);
 	}
 
+	void setHighScore(HerbHighScore highScore)
+	{
+		trackerPanel.setHighScore(highScore);
+	}
+
 	void setCurrentHarvest(FarmingProfitRun run)
 	{
 		trackerPanel.setCurrentHarvest(run);

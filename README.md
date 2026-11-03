@@ -14,6 +14,14 @@ for the run. Hover a patch for a cost / products / profit / XP breakdown.
 The account type is detected automatically (`client.getAccountType()`), and you can override
 it from *Value patches by* in the config (Auto / Profit / XP).
 
+Below the current run, the panel shows:
+
+* **Compost bucket**: uses left in your bottomless compost bucket. It says *check bucket* until the
+  game has told the plugin a count, so use the bucket's Check option once.
+* **High score**: the most herbs you've ever harvested from one patch. Deleting runs or using Reset
+  doesn't clear it.
+* **Past runs**: every earlier run. Click the header to collapse them all into one line.
+
 Supported patch types (each toggleable in config): Herbs, Allotments, Hops, Bushes, Special
 (cactus + seaweed).
 

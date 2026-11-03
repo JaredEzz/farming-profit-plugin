@@ -88,7 +88,12 @@ class FarmingProfitTrackerPanel extends JPanel
 		}
 	}
 
-	private final JPanel runsContainer = new JPanel();
+	/** Holds just the newest run (or the live harvest row when no run has started yet). */
+	private final JPanel currentRunContainer = new JPanel();
+	/** Holds the high score box, between the patch-status card and the past runs. */
+	private final JPanel highScoreContainer = new JPanel();
+	/** Holds the "Past runs" header and, unless collapsed, every run except the newest. */
+	private final JPanel pastRunsContainer = new JPanel();
 	private final HerbRunHelperPanel herbRunPanel;
 	private final JLabel overallIcon = new JLabel();
 	private final JLabel overallValueLabel = new JLabel();
@@ -103,6 +108,10 @@ class FarmingProfitTrackerPanel extends JPanel
 	private boolean forceNewRun = false;
 	/** Run numbers currently expanded; new runs auto-expand and collapse the previous. */
 	private final Set<Integer> expanded = new HashSet<>();
+
+	/** False when every past run is collapsed into the single "Past runs" header. */
+	private boolean pastRunsExpanded = true;
+	private HerbHighScore highScore;
 
 	/** The patch being harvested right now, shown live above the runs; null when not harvesting. */
 	private FarmingProfitRun currentHarvest;
@@ -172,32 +181,16 @@ class FarmingProfitTrackerPanel extends JPanel
 		newRunRow.setBorder(new EmptyBorder(6, 0, 2, 0));
 		newRunRow.add(newRun, BorderLayout.CENTER);
 
-		// Collapse/expand all PAST runs at once (the latest run is left untouched).
-		final JButton hideAll = new JButton("Hide all");
-		hideAll.setFocusPainted(false);
-		hideAll.setFont(FontManager.getRunescapeSmallFont());
-		hideAll.setMargin(new java.awt.Insets(2, 6, 2, 6));
-		hideAll.setToolTipText("Collapse all past runs (keeps the latest run as-is)");
-		hideAll.addActionListener(e -> setPastRunsExpanded(false));
-		final JButton showAll = new JButton("Show all");
-		showAll.setFocusPainted(false);
-		showAll.setFont(FontManager.getRunescapeSmallFont());
-		showAll.setMargin(new java.awt.Insets(2, 6, 2, 6));
-		showAll.setToolTipText("Expand all past runs");
-		showAll.addActionListener(e -> setPastRunsExpanded(true));
-		final JPanel collapseRow = new JPanel(new java.awt.FlowLayout(java.awt.FlowLayout.RIGHT, 4, 0));
-		collapseRow.setBackground(ColorScheme.DARK_GRAY_COLOR);
-		collapseRow.setBorder(new EmptyBorder(0, 0, 2, 0));
-		collapseRow.add(hideAll);
-		collapseRow.add(showAll);
-
-		runsContainer.setLayout(new BoxLayout(runsContainer, BoxLayout.Y_AXIS));
+		currentRunContainer.setLayout(new BoxLayout(currentRunContainer, BoxLayout.Y_AXIS));
+		pastRunsContainer.setLayout(new BoxLayout(pastRunsContainer, BoxLayout.Y_AXIS));
+		highScoreContainer.setLayout(new BoxLayout(highScoreContainer, BoxLayout.Y_AXIS));
 
 		layoutPanel.add(overallPanel);
 		layoutPanel.add(newRunRow);
-		layoutPanel.add(collapseRow);
-		layoutPanel.add(runsContainer);
+		layoutPanel.add(currentRunContainer);
 		layoutPanel.add(herbRunPanel);
+		layoutPanel.add(highScoreContainer);
+		layoutPanel.add(pastRunsContainer);
 
 		rebuild();
 	}
@@ -220,24 +213,6 @@ class FarmingProfitTrackerPanel extends JPanel
 		expanded.remove(group.number);
 		rebuild();
 		onChanged.run();
-	}
-
-	/** Collapse or expand every past run (all groups except index 0, the newest). */
-	private void setPastRunsExpanded(boolean expand)
-	{
-		for (int i = 1; i < groups.size(); i++)
-		{
-			final int number = groups.get(i).number;
-			if (expand)
-			{
-				expanded.add(number);
-			}
-			else
-			{
-				expanded.remove(number);
-			}
-		}
-		rebuild();
 	}
 
 	void addRun(FarmingProfitRun run)
@@ -369,15 +344,29 @@ class FarmingProfitTrackerPanel extends JPanel
 		SwingUtilities.invokeLater(() -> overallIcon.setIcon(new ImageIcon(img)));
 	}
 
+	void setHighScore(HerbHighScore highScore)
+	{
+		this.highScore = highScore;
+		rebuild();
+	}
+
 	private void rebuild()
 	{
-		runsContainer.removeAll();
+		currentRunContainer.removeAll();
+		highScoreContainer.removeAll();
+		pastRunsContainer.removeAll();
+
+		highScoreContainer.add(buildHighScoreBox());
+		if (groups.size() > 1)
+		{
+			pastRunsContainer.add(buildPastRunsHeader(groups.size() - 1));
+		}
 
 		// The live "currently harvesting" row lives below the current run's chart (see buildRunPanel).
 		// Only when there's no run yet (first patch of the session) does it stand alone at the top.
 		if (currentHarvest != null && groups.isEmpty())
 		{
-			runsContainer.add(buildCurrentHarvestRow(currentHarvest));
+			currentRunContainer.add(buildCurrentHarvestRow(currentHarvest));
 		}
 
 		long overallProfit = 0;
@@ -388,7 +377,14 @@ class FarmingProfitTrackerPanel extends JPanel
 		for (int i = 0; i < groups.size(); i++)
 		{
 			final RunGroup group = groups.get(i);
-			runsContainer.add(buildRunPanel(group, i == 0));
+			if (i == 0)
+			{
+				currentRunContainer.add(buildRunPanel(group, true));
+			}
+			else if (pastRunsExpanded)
+			{
+				pastRunsContainer.add(buildRunPanel(group, false));
+			}
 			for (FarmingProfitRun run : group.patches)
 			{
 				overallProfit += run.getProfit();
@@ -409,8 +405,83 @@ class FarmingProfitTrackerPanel extends JPanel
 		overallPatchesLabel.setText(htmlLabel("Total patches: ", overallPatches));
 		overallProductsLabel.setText(htmlLabel("Total products: ", overallProducts));
 
-		runsContainer.revalidate();
-		runsContainer.repaint();
+		revalidate();
+		repaint();
+	}
+
+	/** The box showing the most herbs ever harvested from one patch. */
+	private JPanel buildHighScoreBox()
+	{
+		final JPanel wrapper = new JPanel(new BorderLayout());
+		wrapper.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		wrapper.setBorder(new EmptyBorder(8, 0, 0, 0));
+
+		final JPanel box = new JPanel(new BorderLayout());
+		box.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		box.setBorder(new EmptyBorder(6, 6, 6, 8));
+
+		final Crop crop = highScore == null ? Crop.UNKNOWN : parseCrop(highScore.crop);
+		if (crop != Crop.UNKNOWN)
+		{
+			final JLabel icon = new JLabel();
+			icon.setPreferredSize(new Dimension(32, 28));
+			icon.setHorizontalAlignment(SwingConstants.CENTER);
+			itemManager.getImage(crop.getHarvestedItemId()).addTo(icon);
+			box.add(icon, BorderLayout.WEST);
+		}
+
+		final JPanel info = new JPanel(new GridLayout(2, 1));
+		info.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		info.setBorder(new EmptyBorder(0, 6, 0, 0));
+		final JLabel title = new JLabel(crop == Crop.UNKNOWN ? "High score"
+			: "High score: " + highScore.amount + "x " + crop.getDisplayName());
+		title.setFont(FontManager.getRunescapeSmallFont());
+		title.setForeground(Color.WHITE);
+		final JLabel detail = new JLabel(crop == Crop.UNKNOWN ? "No herbs harvested yet" : highScoreDetail(highScore));
+		detail.setFont(FontManager.getRunescapeSmallFont());
+		detail.setForeground(ColorScheme.LIGHT_GRAY_COLOR);
+		info.add(title);
+		info.add(detail);
+		box.add(info, BorderLayout.CENTER);
+
+		wrapper.add(box, BorderLayout.CENTER);
+		return wrapper;
+	}
+
+	private static String highScoreDetail(HerbHighScore score)
+	{
+		final HerbPatches.HerbPatch patch = HerbPatches.forRegion(score.regionId);
+		final String date = LocalDateTime.ofInstant(Instant.ofEpochMilli(score.timeMillis), ZoneId.systemDefault())
+			.format(DATE_FMT);
+		return patch != null ? patch.name + "  ·  " + date : date;
+	}
+
+	/** The header every past run collapses into. Clicking it shows or hides them all. */
+	private JPanel buildPastRunsHeader(int count)
+	{
+		final JPanel wrapper = new JPanel(new BorderLayout());
+		wrapper.setBackground(ColorScheme.DARK_GRAY_COLOR);
+		wrapper.setBorder(new EmptyBorder(8, 0, 0, 0));
+
+		final JPanel header = new JPanel(new BorderLayout());
+		header.setBackground(ColorScheme.DARKER_GRAY_COLOR);
+		header.setBorder(new EmptyBorder(6, 8, 6, 8));
+		final JLabel title = new JLabel((pastRunsExpanded ? "▾ " : "▸ ") + "Past runs  ·  " + count);
+		title.setFont(FontManager.getRunescapeSmallFont());
+		title.setForeground(Color.WHITE);
+		header.add(title, BorderLayout.CENTER);
+		header.addMouseListener(new MouseAdapter()
+		{
+			@Override
+			public void mouseClicked(MouseEvent e)
+			{
+				pastRunsExpanded = !pastRunsExpanded;
+				rebuild();
+			}
+		});
+
+		wrapper.add(header, BorderLayout.CENTER);
+		return wrapper;
 	}
 
 	/**

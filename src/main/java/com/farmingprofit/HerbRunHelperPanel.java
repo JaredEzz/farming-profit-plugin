@@ -57,6 +57,9 @@ class HerbRunHelperPanel extends JPanel
 	private final JLabel countdownLabel = new JLabel();
 	private final JPanel rowsContainer = new JPanel();
 	/** Footer showing the bottomless compost bucket's remaining uses; hidden when not carried. */
+	static final int COMPOST_BUCKET_NONE = -1;
+	static final int COMPOST_BUCKET_UNKNOWN = -2;
+
 	private final JLabel compostLabel = new JLabel();
 
 	private List<HerbPatchStatus> cached = Collections.emptyList();
@@ -96,16 +99,20 @@ class HerbRunHelperPanel extends JPanel
 		refreshCountdown();
 	}
 
-	/** Set the bottomless compost bucket's remaining uses (negative hides the footer). EDT only. */
+	/**
+	 * Set the bottomless compost bucket's remaining uses, or {@link #COMPOST_BUCKET_NONE} to hide the
+	 * footer, or {@link #COMPOST_BUCKET_UNKNOWN} to ask for a check. EDT only.
+	 */
 	void setCompostBucket(int uses)
 	{
-		if (uses < 0)
+		if (uses == COMPOST_BUCKET_NONE)
 		{
 			compostLabel.setVisible(false);
 		}
 		else
 		{
-			compostLabel.setText(twoTone("Compost bucket: ", uses + " left",
+			compostLabel.setText(twoTone("Compost bucket: ",
+				uses == COMPOST_BUCKET_UNKNOWN ? "check bucket" : uses + " left",
 				ColorScheme.LIGHT_GRAY_COLOR));
 			compostLabel.setVisible(true);
 		}
